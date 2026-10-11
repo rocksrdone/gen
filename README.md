@@ -4,9 +4,9 @@ Custom Grist widgets for the **Family History Research** doc (Stash team site).
 
 | Widget | Bind it to | URL (after GitHub Pages is on) |
 |---|---|---|
-| Person profile | `People` | `https://rocksrdone.github.io/genealogy-widgets/person/` |
-| Family tree | `People` | `https://rocksrdone.github.io/genealogy-widgets/tree/` |
-| DNA match helper | `DNA_Matches` | `https://rocksrdone.github.io/genealogy-widgets/dna/` |
+| Person profile | `People` | `https://rocksrdone.github.io/gen/person/` |
+| Family tree | `People` | `https://rocksrdone.github.io/gen/tree/` |
+| DNA match helper | `DNA_Matches` | `https://rocksrdone.github.io/gen/dna/` |
 
 ## Adding a widget in Grist
 
