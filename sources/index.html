@@ -80,7 +80,7 @@ const esc = FH.esc;
 const TABLES = ['Sources', 'Evidence', 'People', 'Places', 'Names', 'Conclusions', 'Ancestry_Sync', 'Searches', '_grist_Attachments'];
 let data = null, choices = {}, selected = null, mode = 'view', token = null, tokenAt = 0, t = null;
 
-grist.ready({ requiredAccess: 'full', columns: [] });
+grist.ready({ requiredAccess: 'full', columns: [], allowSelectBy: true });
 FH.followTheme();
 grist.onRecord(rec => { if (rec && mode !== 'new') { selected = rec.id; } reload(); });
 grist.onRecords(() => reload());
@@ -258,16 +258,35 @@ async function upload(s, files) {
   const msg = document.getElementById('upMsg');
   if (!files.length) return;
   msg.className = 'msg'; msg.textContent = `Uploading ${files.length}…`;
-  try {
-    const k = await tok();
-    const fd = new FormData(); files.forEach(f => fd.append('upload', f, f.name || 'pasted.png'));
-    const r = await fetch(`${k.baseUrl}/attachments?auth=${k.token}`, { method: 'POST', body: fd });
-    if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 120));
-    const ids = await r.json();
+  const attach = async ids => {
     const cur = FH.list(data.byId.Sources.get(s.id).Images);
     await grist.docApi.applyUserActions([['UpdateRecord', 'Sources', s.id, { Images: ['L', ...cur, ...ids] }]]);
     msg.textContent = `Added ${ids.length} file${ids.length > 1 ? 's' : ''}.`; reload();
-  } catch (e) { msg.className = 'msg err'; msg.textContent = 'Upload failed: ' + e.message; }
+  };
+  const form = () => { const fd = new FormData(); files.forEach(f => fd.append('upload', f, f.name || 'pasted.png')); return fd; };
+  let k;
+  try { k = await tok(); } catch (e) { msg.className = 'msg err'; msg.textContent = 'Could not get access (set the widget to Full document access).'; return; }
+  const url = `${k.baseUrl}/attachments?auth=${k.token}`;
+  // 1) normal request (works when Grist allows cross-site requests)
+  try {
+    const r = await fetch(url, { method: 'POST', body: form() });
+    if (r.ok) return attach(await r.json());
+  } catch (e) { /* blocked by the browser; try the fallback */ }
+  // 2) "no-cors" request: the browser still sends it but hides the reply,
+  //    so look for the new attachment rows ourselves.
+  try {
+    const before = new Set(FH.rows(await grist.docApi.fetchTable('_grist_Attachments')).map(a => a.id));
+    await fetch(url, { method: 'POST', mode: 'no-cors', body: form() });
+    let fresh = [];
+    for (let i = 0; i < 6 && fresh.length < files.length; i++) {
+      await new Promise(r => setTimeout(r, 500 + i * 300));
+      const names = new Set(files.map(f => f.name || 'pasted.png'));
+      fresh = FH.rows(await grist.docApi.fetchTable('_grist_Attachments')).filter(a => !before.has(a.id) && names.has(a.fileName)).map(a => a.id);
+    }
+    if (fresh.length) return attach(fresh);
+  } catch (e) { /* fall through */ }
+  msg.className = 'msg err';
+  msg.innerHTML = 'Your browser blocked the upload. Drop the image into the <b>Images</b> box under this widget instead; it is linked to the source selected here.';
 }
 
 function sourceForm(s) {
