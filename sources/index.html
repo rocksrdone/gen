@@ -178,7 +178,7 @@ function renderMain() {
   <div class="grid2" style="margin-top:12px">
     <div class="stack">
       ${card('Images', `${imgs.length ? `<div class="thumbs">${imgs.map(id => { const a = att && att.get(id); const fn = a ? a.fileName : 'file'; const isImg = /\.(jpe?g|png|gif|webp|bmp|tiff?)$/i.test(fn); return `<a href="#" data-att="${id}" title="${esc(fn)}">${isImg ? `<img data-att-img="${id}" alt="">` : ''}<span class="fn">${esc(fn)}</span></a>`; }).join('')}</div>` : ''}
-        <label class="drop" id="drop">Drop images here, paste (Ctrl+V), or click to choose<input type="file" id="file" multiple accept="image/*,application/pdf" hidden></label><span class="msg" id="upMsg"></span>`, `<span class="count">${imgs.length}</span>`)}
+        <div class="muted" style="font-size:13px">${imgs.length ? '' : 'No images yet. '}Add or remove images in the <b>Images</b> box below this widget (Grist only accepts uploads through its own box). They show up here straight away.</div>`, `<span class="count">${imgs.length}</span>`)}
       ${card('Transcription', `${s.Transcription ? `<div class="trans">${esc(s.Transcription)}</div>` : '<div class="empty">None yet.</div>'}
         <details style="margin-top:8px"><summary>Edit transcription</summary><textarea id="trans" rows="10">${esc(s.Transcription || '')}</textarea>
         <div style="margin-top:6px"><button class="btn sm" id="saveTrans">Save</button><span class="msg" id="trMsg"></span></div></details>`)}
@@ -220,12 +220,6 @@ function wireView(s) {
   $('editBtn').onclick = () => { $('editBox').innerHTML = sourceForm(s); wireSourceForm(s); };
   // images
   loadThumbs();
-  const drop = $('drop'), file = $('file');
-  file.onchange = () => upload(s, [...file.files]);
-  ['dragenter', 'dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
-  ['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
-  drop.addEventListener('drop', ev => upload(s, [...ev.dataTransfer.files]));
-  document.onpaste = ev => { const f = [...(ev.clipboardData || {}).files || []]; if (f.length && mode === 'view') upload(s, f); };
   document.querySelectorAll('[data-att]').forEach(a => a.onclick = async ev => { ev.preventDefault(); const k = await tok(); window.open(`${k.baseUrl}/attachments/${a.dataset.att}/download?auth=${k.token}`, '_blank'); });
   // transcription
   $('saveTrans').onclick = async () => { await grist.docApi.applyUserActions([['UpdateRecord', 'Sources', s.id, { Transcription: $('trans').value }]]); $('trMsg').textContent = 'Saved.'; reload(); };
@@ -326,7 +320,7 @@ function wireSourceForm(s) {
   };
 }
 function renderNew(m) {
-  m.innerHTML = `<div class="card"><div class="section-title">New source</div><div class="muted" style="font-size:13px">Paste the FamilySearch or Ancestry links. Tracking junk is stripped from the URL automatically. After creating it, drop the image in and add the evidence.</div>${sourceForm(null)}</div>`;
+  m.innerHTML = `<div class="card"><div class="section-title">New source</div><div class="muted" style="font-size:13px">Paste the FamilySearch or Ancestry links. Tracking junk is stripped from the URL automatically. After creating it, add the image in the Images box below and add the evidence here.</div>${sourceForm(null)}</div>`;
   wireSourceForm(null);
   renderList();
 }
