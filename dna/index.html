@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DNA Match Helper</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/common.js"></script>
+<style>
+  .layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; align-items: start; }
+  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+  .col { display: flex; flex-direction: column; gap: 12px; }
+  form.add { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+  form.add .wide { grid-column: span 2; }
+  form.add .full { grid-column: 1 / -1; }
+  @media (max-width: 560px) { form.add { grid-template-columns: repeat(2, 1fr); } form.add .wide { grid-column: span 2; } }
+  .f label { display: block; font-size: 11px; color: var(--ink-3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+  .f input, .f select { width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); font: inherit; }
+  .f input:focus, .f select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 7px; padding: 8px 14px; font: 600 13px var(--sans); cursor: pointer; }
+  .btn.secondary { background: var(--panel-2); color: var(--ink); }
+  .hint { font-size: 12px; color: var(--ink-2); align-self: center; }
+  .live { margin-top: 8px; font-size: 13px; color: var(--ink-2); min-height: 18px; }
+
+  .match-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .match-head h2 { font: 600 20px/1.2 var(--serif); margin: 0; }
+  .big { font: 600 22px var(--sans); font-variant-numeric: tabular-nums; }
+  .big small { font-size: 13px; color: var(--ink-2); font-weight: 500; }
+  .facts { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 12px; }
+
+  .rchart .r { display: grid; grid-template-columns: 170px 1fr 78px; gap: 8px; align-items: center; height: 22px; font-size: 12px; }
+  .rchart .name { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rchart .r.hit .name { color: var(--ink); font-weight: 600; }
+  .rchart .trk { position: relative; height: 100%; }
+  .rchart .rng { position: absolute; top: 7px; height: 8px; border-radius: 4px; background: var(--line); }
+  .rchart .r.hit .rng { background: var(--accent); opacity: .55; }
+  .rchart .avg { position: absolute; top: 4px; width: 2px; height: 14px; background: var(--ink-3); }
+  .rchart .r.hit .avg { background: var(--accent); }
+  .rchart .marker { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--bad); }
+  .rchart .pct { white-space: nowrap; text-align: right; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .rchart .axis { position: relative; height: 16px; margin-left: 178px; margin-right: 86px; border-top: 1px solid var(--line); }
+  .rchart .axis span { position: absolute; transform: translateX(-50%); font-size: 10px; color: var(--ink-3); top: 2px; }
+
+  .ml { max-height: 420px; overflow: auto; }
+  .ml table { width: 100%; border-collapse: collapse; }
+  .ml td { padding: 6px 6px; border-top: 1px solid var(--line); cursor: pointer; }
+  .ml tr:first-child td { border-top: 0; }
+  .ml tr:hover td { background: var(--panel-2); }
+  .ml tr.sel td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .ml .cm { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; background: var(--line); }
+  .clusters { display: flex; flex-wrap: wrap; gap: 6px; }
+  .clusters .badge { font-weight: 500; }
+  .shared-add { display: grid; grid-template-columns: 1fr 90px auto; gap: 6px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="layout">
+    <div class="col">
+      <div class="card">
+        <div class="section-title">Add an AncestryDNA match</div>
+        <form class="add" id="add" autocomplete="off">
+          <div class="f wide"><label>Match name</label><input name="Match_Name" required></div>
+          <div class="f"><label>Shared cM</label><input name="Shared_cM" type="number" step="0.1" min="0" required></div>
+          <div class="f"><label>Segments</label><input name="Segments" type="number" min="0"></div>
+          <div class="f"><label>Longest cM</label><input name="Longest_cM" type="number" step="0.1" min="0"></div>
+          <div class="f"><label>Side</label><select name="Side"><option>Unknown</option><option>Paternal</option><option>Maternal</option><option>Both</option></select></div>
+          <div class="f wide"><label>Ancestry predicts</label><input name="Ancestry_Predicted" placeholder="e.g. 3rd–4th cousin"></div>
+          <div class="f wide"><label>Cluster</label><select name="Cluster" id="clusterSel"></select></div>
+          <div class="f wide"><label>Tree</label><select name="Tree"><option></option><option>Public linked</option><option>Private</option><option>Unlinked</option><option>None</option></select></div>
+          <div class="f full"><label>Match page link</label><input name="Match_URL" placeholder="https://www.ancestry.com/discoveryui-matches/…"></div>
+          <div class="full" style="display:flex;gap:10px;align-items:center"><button class="btn" type="submit">Add match</button><span class="hint" id="addMsg"></span></div>
+        </form>
+        <div class="live" id="live"></div>
+      </div>
+      <div class="card" id="detail"><div class="loading">Loading…</div></div>
+    </div>
+    <div class="col">
+      <div class="card"><div class="section-title">Clusters</div><div class="clusters" id="clusters"></div></div>
+      <div class="card"><div class="section-title">All matches <span class="count" id="mcount">0</span></div><div class="ml" id="list"></div></div>
+    </div>
+  </div>
+</div>
+<script>
+const esc = FH.esc;
+// Shared cM Project v4 (approximate ranges): name, low, high, average
+const R = [
+  ['Parent / Child', 2376, 3720, 3485], ['Full sibling', 1613, 3488, 2613],
+  ['Grandparent / Aunt-Uncle / Half sibling', 984, 2462, 1750], ['1st cousin', 396, 1397, 866],
+  ['Half aunt-uncle', 492, 1315, 871], ['1st cousin 1x removed', 102, 980, 433], ['Half 1st cousin', 156, 979, 449],
+  ['2nd cousin', 41, 592, 229], ['1st cousin 2x removed', 33, 471, 221], ['2nd cousin 1x removed', 14, 353, 122],
+  ['Half 2nd cousin', 9, 397, 120], ['3rd cousin', 0, 234, 73], ['2nd cousin 2x removed', 0, 261, 71],
+  ['3rd cousin 1x removed', 0, 192, 48], ['4th cousin', 0, 139, 35]];
+const COLORS = { Red: '#d0544a', Orange: '#e08a3c', Yellow: '#d9b53a', Green: '#4f9a62', Blue: '#4a7fc0', Purple: '#8a62b8', Pink: '#d272a0', Brown: '#8a6544', Gray: '#8d8d8d' };
+let data = null, selected = null, t = null;
+
+grist.ready({ requiredAccess: 'full', columns: [] });
+FH.followTheme();
+grist.onRecord(rec => { selected = rec ? rec.id : null; reload(); });
+grist.onRecords(() => reload());
+
+function reload() { clearTimeout(t); t = setTimeout(async () => { data = await FH.load(['DNA_Matches', 'DNA_Clusters', 'DNA_Kits', 'DNA_Shared', 'People']); render(); }, 120); }
+
+// sqrt scale so small cM values stay readable
+const MAX = 3720;
+const sx = v => (Math.sqrt(Math.max(0, v)) / Math.sqrt(MAX) * 100).toFixed(2) + '%';
+function candidates(cm) {
+  return R.filter(r => cm >= r[1] && cm <= r[2]).sort((a, b) => Math.abs(cm - a[3]) - Math.abs(cm - b[3]));
+}
+function relChart(cm) {
+  const hits = new Set(candidates(cm).map(r => r[0]));
+  const rows = R.map(r => `<div class="r ${hits.has(r[0]) ? 'hit' : ''}"><div class="name">${r[0]}</div>
+    <div class="trk"><div class="rng" style="left:${sx(r[1])};width:calc(${sx(r[2])} - ${sx(r[1])})"></div><div class="avg" style="left:${sx(r[3])}" title="average ${r[3]} cM"></div>
+    ${cm != null ? `<div class="marker" style="left:${sx(cm)}"></div>` : ''}</div><div class="pct">${r[1]}–${r[2]}</div></div>`).join('');
+  const ticks = [0, 25, 100, 250, 500, 1000, 2000, 3500].map(v => `<span style="left:${sx(v)}">${v}</span>`).join('');
+  return `<div class="rchart">${rows}<div class="axis">${ticks}</div></div>`;
+}
+const clusterColor = id => { const c = data.byId.DNA_Clusters.get(id); return c ? (COLORS[c.Color] || '#999') : null; };
+
+function render() {
+  if (!data) return;
+  const M = data.DNA_Matches;
+  // cluster select
+  const cs = document.getElementById('clusterSel'), keep = cs.value;
+  cs.innerHTML = '<option value="">—</option>' + data.DNA_Clusters.map(c => `<option value="${c.id}">${esc(c.Name)}</option>`).join('');
+  cs.value = keep;
+  // cluster chips
+  document.getElementById('clusters').innerHTML = data.DNA_Clusters.length ? data.DNA_Clusters.map(c => {
+    const n = M.filter(m => m.Cluster === c.id).length;
+    return `<span class="badge"><span class="dot" style="background:${COLORS[c.Color] || '#999'}"></span>${esc(c.Name)} · ${n}</span>`;
+  }).join('') + `<span class="badge">Unclustered · ${M.filter(m => !m.Cluster).length}</span>` : '<span class="empty">No clusters yet.</span>';
+  // list
+  document.getElementById('mcount').textContent = M.length;
+  const sorted = M.slice().sort((a, b) => (b.Shared_cM || 0) - (a.Shared_cM || 0));
+  document.getElementById('list').innerHTML = sorted.length ? `<table>${sorted.map(m => `<tr data-id="${m.id}" class="${m.id === selected ? 'sel' : ''}">
+      <td><span class="dot" style="background:${clusterColor(m.Cluster) || 'var(--line)'}"></span>${esc(m.Match_Name || '(no name)')}<div class="faint" style="font-size:11px">${esc([m.Side !== 'Unknown' ? m.Side : '', m.Status].filter(Boolean).join(' · '))}</div></td>
+      <td class="cm">${m.Shared_cM != null ? m.Shared_cM : ''}<div class="faint" style="font-size:11px;font-weight:400">cM</div></td></tr>`).join('')}</table>`
+    : '<div class="empty">No matches yet. Add your first one on the left.</div>';
+  document.querySelectorAll('#list tr[data-id]').forEach(tr => tr.onclick = () => { selected = +tr.dataset.id; grist.setCursorPos({ rowId: selected }).catch(() => {}); render(); });
+  renderDetail();
+}
+
+function renderDetail() {
+  const el = document.getElementById('detail');
+  const m = data.byId.DNA_Matches.get(selected);
+  if (!m) { el.innerHTML = `<div class="section-title">Where would a match fit?</div><div class="muted" style="margin-bottom:8px">Type a shared cM above to see the possible relationships.</div>${relChart(null)}`; return; }
+  const cands = candidates(m.Shared_cM || 0);
+  const shared = data.DNA_Shared.filter(s => s.Match_A === m.id || s.Match_B === m.id).map(s => ({ other: s.Match_A === m.id ? s.Match_B : s.Match_A, cm: s.Shared_cM }));
+  const anc = data.byId.People.get(m.Common_Ancestor);
+  const cl = data.byId.DNA_Clusters.get(m.Cluster);
+  el.innerHTML = `<div class="match-head"><h2>${esc(m.Match_Name || '(no name)')}</h2>
+      <div class="big">${m.Shared_cM != null ? m.Shared_cM : '?'} <small>cM${m.Segments ? ` · ${m.Segments} segments` : ''}${m.Longest_cM ? ` · longest ${m.Longest_cM}` : ''}</small></div></div>
+    <div class="facts">${cl ? `<span class="badge"><span class="dot" style="background:${COLORS[cl.Color] || '#999'}"></span>${esc(cl.Name)}</span>` : ''}
+      ${m.Side && m.Side !== 'Unknown' ? `<span class="badge">${esc(m.Side)}</span>` : ''}
+      ${m.Ancestry_Predicted ? `<span class="badge">Ancestry: ${esc(m.Ancestry_Predicted)}</span>` : ''}
+      ${m.Tree ? `<span class="badge">Tree: ${esc(m.Tree)}${m.Tree_Size ? ' (' + m.Tree_Size + ')' : ''}</span>` : ''}
+      ${anc ? `<span class="badge ok">Common ancestor: ${esc(anc.Name)}</span>` : ''}
+      ${m.Match_URL ? `<a class="badge" href="${esc(m.Match_URL)}" target="_blank" rel="noopener">Open on Ancestry ↗</a>` : ''}</div>
+    <div class="section-title">Most likely relationships</div>
+    <div style="margin-bottom:10px">${cands.slice(0, 5).map((r, i) => `<span class="badge ${i === 0 ? 'ok' : ''}" style="margin:0 4px 4px 0">${r[0]}</span>`).join('') || '<span class="empty">Outside the usual ranges.</span>'}</div>
+    ${relChart(m.Shared_cM)}
+    <div class="section-title" style="margin-top:14px">Shared matches <span class="count">${shared.length}</span></div>
+    ${shared.length ? `<table class="list">${shared.map(s => { const o = data.byId.DNA_Matches.get(s.other) || {}; return `<tr><td><span class="dot" style="background:${clusterColor(o.Cluster) || 'var(--line)'}"></span>${esc(o.Match_Name || '?')}</td><td class="muted">${o.Shared_cM != null ? o.Shared_cM + ' cM with you' : ''}</td><td class="muted">${s.cm != null ? s.cm + ' cM with each other' : ''}</td></tr>`; }).join('')}</table>` : '<div class="empty">None recorded. Add people from this match’s “Shared Matches” list on Ancestry.</div>'}
+    <div class="shared-add"><select id="shOther" class="f" style="padding:7px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink)">
+      <option value="">Add a shared match…</option>${data.DNA_Matches.filter(o => o.id !== m.id && !shared.some(s => s.other === o.id)).sort((a, b) => (a.Match_Name || '').localeCompare(b.Match_Name || '')).map(o => `<option value="${o.id}">${esc(o.Match_Name)}</option>`).join('')}</select>
+      <input id="shCm" type="number" step="0.1" placeholder="cM (opt.)" style="padding:7px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink)">
+      <button class="btn secondary" id="shAdd">Add</button></div>`;
+  document.getElementById('shAdd').onclick = async () => {
+    const other = +document.getElementById('shOther').value; if (!other) return;
+    const cm = parseFloat(document.getElementById('shCm').value);
+    await grist.docApi.applyUserActions([['AddRecord', 'DNA_Shared', null, { Match_A: m.id, Match_B: other, Shared_cM: isNaN(cm) ? null : cm }]]);
+    reload();
+  };
+}
+
+// live preview while typing cM
+const form = document.getElementById('add');
+form.Shared_cM.addEventListener('input', () => {
+  const v = parseFloat(form.Shared_cM.value);
+  document.getElementById('live').innerHTML = isNaN(v) ? '' : `Likely: <b>${candidates(v).slice(0, 4).map(r => r[0]).join(', ') || 'outside the usual ranges'}</b>`;
+});
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const fd = new FormData(form), rec = { Status: 'New' };
+  for (const [k, v] of fd.entries()) {
+    if (v === '') continue;
+    rec[k] = ['Shared_cM', 'Longest_cM'].includes(k) ? parseFloat(v) : k === 'Segments' ? parseInt(v, 10) : k === 'Cluster' ? +v : v;
+  }
+  if (data && data.DNA_Kits.length) rec.Kit = data.DNA_Kits[0].id;
+  try {
+    const res = await grist.docApi.applyUserActions([['AddRecord', 'DNA_Matches', null, rec]]);
+    const id = res.retValues[0];
+    form.reset(); document.getElementById('live').innerHTML = '';
+    document.getElementById('addMsg').textContent = `Added ${rec.Match_Name}.`;
+    selected = id; grist.setCursorPos({ rowId: id }).catch(() => {}); reload();
+    form.Match_Name.focus();
+  } catch (err) { document.getElementById('addMsg').textContent = 'Could not add: ' + err.message; }
+});
+</script>
+</body>
+</html>

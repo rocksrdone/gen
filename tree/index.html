@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Family Tree</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/common.js"></script>
+<style>
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; }
+  .bar { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .bar .search { flex: 1; max-width: 360px; }
+  .bar label { font-size: 12px; color: var(--ink-2); display: flex; gap: 6px; align-items: center; }
+  .bar select { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; }
+  .key { margin-left: auto; display: flex; gap: 10px; font-size: 11px; color: var(--ink-3); flex-wrap: wrap; }
+  .key span::before { content: ""; display: inline-block; width: 14px; height: 9px; border: 1.5px solid var(--ink-3); border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .key .k-prob::before { border-style: dashed; } .key .k-hyp::before { border-style: dotted; border-color: var(--hyp); }
+  .key .k-not::before { opacity: .4; }
+  .stage { flex: 1; overflow: auto; position: relative; }
+  .tree { position: relative; display: inline-flex; flex-direction: column; gap: 46px; padding: 28px 24px 40px; min-width: 100%; align-items: safe center; }
+  svg.lines { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+  svg.lines path { fill: none; stroke: var(--ink-3); stroke-width: 1.3; }
+  svg.lines path.weak { stroke-dasharray: 4 3; }
+  .gen { display: flex; gap: 22px; justify-content: safe center; align-items: flex-start; }
+  .gen-label { position: absolute; left: 10px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  .group { display: flex; gap: 8px; padding: 6px; border-radius: 10px; }
+  .group.couple { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+  .node { width: 140px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 8px; padding: 7px 9px; cursor: pointer; box-shadow: var(--shadow); text-align: left; font: inherit; color: var(--ink); }
+  .node:hover { border-color: var(--accent); }
+  .node .n { font: 600 13px/1.2 var(--serif); }
+  .node .l { font-size: 11px; color: var(--ink-2); margin-top: 2px; }
+  .node.F { border-top: 3px solid #c0739a; } .node.M { border-top: 3px solid #5f8fc0; }
+  .node.st-probable { border-style: dashed; }
+  .node.st-hyp { border-style: dotted; border-color: var(--hyp); }
+  .node.st-not { opacity: .45; }
+  .node.focus { width: 190px; border-color: var(--accent); border-width: 2px; background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+  .node.focus .n { font-size: 16px; }
+  .node.sib { width: 130px; opacity: .85; }
+  .node.sib .n { font-size: 12px; }
+  .node.ghost { border-style: dashed; color: var(--ink-3); cursor: default; box-shadow: none; background: transparent; }
+  .more { font-size: 10px; color: var(--accent); margin-top: 3px; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="search" id="search"></div>
+  <label>Up <select id="up"><option>1</option><option selected>2</option><option>3</option></select></label>
+  <label>Down <select id="down"><option>1</option><option selected>2</option><option>3</option></select></label>
+  <label><input type="checkbox" id="sibs" checked> Siblings</label>
+  <div class="key"><span>Proven</span><span class="k-prob">Probable</span><span class="k-hyp">Hypothesis</span><span class="k-not">Not this family</span></div>
+</div>
+<div class="stage" id="stage"><div class="loading">Loading…</div></div>
+<script>
+const esc = FH.esc;
+let data = null, current = null, t = null;
+grist.ready({ requiredAccess: 'full', columns: [] });
+FH.followTheme();
+FH.personSearch(document.getElementById('search'), () => (data ? data.People : []), go);
+['up', 'down', 'sibs'].forEach(id => document.getElementById(id).onchange = render);
+grist.onRecord(rec => { if (!rec) return; current = rec.id; clearTimeout(t); t = setTimeout(async () => { data = await FH.load(['People', 'Relationships']); render(); }, 120); });
+window.addEventListener('resize', () => drawLines());
+
+function go(id) { current = id; render(); try { grist.setCursorPos({ rowId: id }); } catch (e) {} }
+
+const born = id => { const p = data.byId.People.get(id); const m = (p && p.Born || '').match(/\d{4}/); return m ? +m[0] : 9999; };
+const byBirth = ids => ids.slice().sort((a, b) => born(a) - born(b));
+const fam = id => FH.family(data, id);
+
+function node(id, cls) {
+  const p = data.byId.People.get(id);
+  if (!p) return '';
+  const f = fam(id);
+  const hidden = cls.includes('edge') && (f.parents.length || f.children.length);
+  return `<button class="node ${p.Sex || ''} ${FH.statusClass(p.Status)} ${cls}" data-id="${id}" title="${esc(p.Status || '')}${p.Notes ? ' — ' + esc(p.Notes) : ''}">
+    <div class="n">${esc(p.Name)}</div><div class="l">${esc(FH.lifespan(p)) || '&nbsp;'}</div>${hidden ? '<div class="more">more ↕</div>' : ''}</button>`;
+}
+
+let edges = [];
+function render() {
+  if (!data) return;
+  const P = data.byId.People;
+  if (!P.has(current)) current = data.People[0] && data.People[0].id;
+  if (!current) return;
+  const up = +document.getElementById('up').value, down = +document.getElementById('down').value;
+  const showSibs = document.getElementById('sibs').checked;
+  edges = [];
+  const rows = [];
+
+  // Ancestors: each generation is a list of couples (parent sets) keyed by child.
+  let gen = [current];
+  for (let g = 1; g <= up; g++) {
+    const groups = [];
+    const next = [];
+    gen.forEach(cid => {
+      const ps = fam(cid).parents.map(x => x.id);
+      if (!ps.length) return;
+      const pg = ps.map(pid => { const conf = fam(cid).parents.find(x => x.id === pid).conf; edges.push([pid, cid, conf]); return pid; });
+      groups.push(`<div class="group couple">${pg.map(pid => node(pid, g === up ? 'edge' : '')).join('')}</div>`);
+      next.push(...pg);
+    });
+    if (!groups.length) break;
+    rows.unshift({ label: ['Parents', 'Grandparents', 'Great-grandparents'][g - 1], html: groups.join('') });
+    gen = next;
+  }
+
+  // Focus row: siblings + focus + spouses
+  const f = fam(current);
+  const sibs = showSibs ? byBirth(f.siblings.map(x => x.id)) : [];
+  if (showSibs) f.parents.forEach(pp => sibs.forEach(s => edges.push([pp.id, s, 'Proven'])));
+  const before = sibs.filter(s => born(s) <= born(current)), after = sibs.filter(s => born(s) > born(current));
+  const spouses = f.spouses.map(x => x.id);
+  rows.push({ label: 'Focus', html:
+    (before.length ? `<div class="group">${before.map(s => node(s, 'sib')).join('')}</div>` : '') +
+    `<div class="group couple">${node(current, 'focus')}${spouses.map(s => node(s, '')).join('')}</div>` +
+    (after.length ? `<div class="group">${after.map(s => node(s, 'sib')).join('')}</div>` : '') });
+
+  // Descendants
+  let parentsOfGen = [current];
+  for (let g = 1; g <= down; g++) {
+    const groups = [];
+    const next = [];
+    parentsOfGen.forEach(pid => {
+      const kids = byBirth(fam(pid).children.map(x => x.id));
+      if (!kids.length) return;
+      kids.forEach(k => edges.push([pid, k, fam(pid).children.find(x => x.id === k).conf]));
+      groups.push(`<div class="group">${kids.map(k => {
+        const sp = g < down ? fam(k).spouses.map(x => x.id) : [];
+        return sp.length ? `<div class="group couple" style="padding:0;background:none">${node(k, g === down ? 'edge' : '')}${sp.map(s => node(s, '')).join('')}</div>` : node(k, g === down ? 'edge' : '');
+      }).join('')}</div>`);
+      next.push(...kids);
+    });
+    if (!groups.length) break;
+    rows.push({ label: ['Children', 'Grandchildren', 'Great-grandchildren'][g - 1], html: groups.join('') });
+    parentsOfGen = next;
+  }
+
+  const stage = document.getElementById('stage');
+  stage.innerHTML = `<div class="tree" id="tree"><svg class="lines" id="lines"></svg>${rows.map(r => `<div class="gen" data-label="${r.label}">${r.html}</div>`).join('')}</div>`;
+  stage.querySelectorAll('.node[data-id]').forEach(b => b.onclick = () => go(+b.dataset.id));
+  requestAnimationFrame(() => {
+    const focus = stage.querySelector('.node.focus');
+    if (focus) focus.scrollIntoView({ block: 'center', inline: 'center' });
+    drawLines();
+  });
+}
+
+function drawLines() {
+  const tree = document.getElementById('tree'), svg = document.getElementById('lines');
+  if (!tree || !svg) return;
+  const base = tree.getBoundingClientRect();
+  svg.setAttribute('width', tree.scrollWidth); svg.setAttribute('height', tree.scrollHeight);
+  const pos = id => { const el = tree.querySelector(`.node[data-id="${id}"]`); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left - base.left + r.width / 2, top: r.top - base.top, bot: r.bottom - base.top }; };
+  // Merge co-parents: draw from the midpoint of all parents of a child.
+  const byChild = new Map();
+  edges.forEach(([p, c, conf]) => { if (!byChild.has(c)) byChild.set(c, []); byChild.get(c).push({ p, conf }); });
+  let d = '', dw = '';
+  byChild.forEach((ps, c) => {
+    const cp = pos(c); if (!cp) return;
+    const pp = ps.map(x => pos(x.p)).filter(Boolean); if (!pp.length) return;
+    const x0 = pp.reduce((s, q) => s + q.x, 0) / pp.length, y0 = Math.max(...pp.map(q => q.bot));
+    const midY = y0 + (cp.top - y0) / 2;
+    const path = `M${x0},${y0 + 6} V${midY} H${cp.x} V${cp.top} `;
+    if (ps.every(x => x.conf === 'Proven' || !x.conf)) d += path; else dw += path;
+  });
+  svg.innerHTML = `<path d="${d}"/><path class="weak" d="${dw}"/>`;
+}
+</script>
+</body>
+</html>

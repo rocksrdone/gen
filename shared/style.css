@@ -1,0 +1,75 @@
+:root {
+  --bg: #fbf8f2;
+  --panel: #ffffff;
+  --panel-2: #f3eee4;
+  --ink: #2b2620;
+  --ink-2: #6b6256;
+  --ink-3: #9a9082;
+  --line: #e4ddcf;
+  --accent: #8a5a2b;
+  --accent-ink: #ffffff;
+  --ok: #2f7d4f;
+  --ok-bg: #e5f3ea;
+  --bad: #b23b2e;
+  --bad-bg: #fbe8e5;
+  --warn: #9a6a00;
+  --warn-bg: #fbf1d9;
+  --hyp: #5b5fa8;
+  --hyp-bg: #ecedf8;
+  --shadow: 0 1px 2px rgba(40, 30, 10, .06), 0 2px 8px rgba(40, 30, 10, .05);
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1d1b19; --panel: #262320; --panel-2: #2f2b27; --ink: #ece6dc; --ink-2: #b5ab9c; --ink-3: #85796b;
+    --line: #3b3631; --accent: #d39a5c; --accent-ink: #1d1b19;
+    --ok: #7ccc98; --ok-bg: #213529; --bad: #f08a7c; --bad-bg: #3d2420; --warn: #e7bd5a; --warn-bg: #3a3020;
+    --hyp: #a8acf0; --hyp-bg: #2a2b40; --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1d1b19; --panel: #262320; --panel-2: #2f2b27; --ink: #ece6dc; --ink-2: #b5ab9c; --ink-3: #85796b;
+  --line: #3b3631; --accent: #d39a5c; --accent-ink: #1d1b19;
+  --ok: #7ccc98; --ok-bg: #213529; --bad: #f08a7c; --bad-bg: #3d2420; --warn: #e7bd5a; --warn-bg: #3a3020;
+  --hyp: #a8acf0; --hyp-bg: #2a2b40; --shadow: none;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { padding: 14px; max-width: 1100px; margin: 0 auto; }
+.muted { color: var(--ink-2); }
+.faint { color: var(--ink-3); }
+.empty { color: var(--ink-3); font-style: italic; }
+.loading { padding: 40px; text-align: center; color: var(--ink-3); }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 12px 14px; }
+.section-title { font: 600 11px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 8px; display: flex; gap: 8px; align-items: center; }
+.section-title .count { background: var(--panel-2); color: var(--ink-2); border-radius: 99px; padding: 2px 7px; letter-spacing: 0; }
+
+.badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--panel-2); color: var(--ink-2); white-space: nowrap; }
+.badge.ok, .st-proven .badge-st { background: var(--ok-bg); color: var(--ok); }
+.badge.bad { background: var(--bad-bg); color: var(--bad); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+.badge.hyp { background: var(--hyp-bg); color: var(--hyp); }
+
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; font: inherit; text-align: left; }
+.chip:hover { border-color: var(--accent); }
+.chip .sub { color: var(--ink-3); font-size: 12px; }
+.chip.st-probable { border-style: dashed; }
+.chip.st-hyp { border-style: dotted; border-color: var(--hyp); }
+.chip.st-not { opacity: .55; text-decoration: line-through; }
+
+.search { position: relative; }
+.search input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; }
+.search input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.search .results { position: absolute; z-index: 10; left: 0; right: 0; top: 100%; margin-top: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); max-height: 280px; overflow: auto; display: none; }
+.search .results.open { display: block; }
+.search .results button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 7px 10px; color: var(--ink); font: inherit; cursor: pointer; }
+.search .results button:hover, .search .results button.active { background: var(--panel-2); }
+
+table.list { width: 100%; border-collapse: collapse; }
+table.list td, table.list th { padding: 6px 6px; border-top: 1px solid var(--line); vertical-align: top; text-align: left; }
+table.list th { font-size: 11px; color: var(--ink-3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; border-top: 0; }
+table.list tr:first-child td { border-top: 0; }
