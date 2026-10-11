@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sources</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/common.js"></script>
+<style>
+  html, body { height: 100%; }
+  body { display: grid; grid-template-columns: 330px 1fr; height: 100vh; overflow: hidden; }
+  @media (max-width: 760px) { body { grid-template-columns: 1fr; height: auto; overflow: auto; } .side { max-height: 45vh; } }
+  .side { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
+  .side .filters { padding: 10px; display: grid; gap: 6px; border-bottom: 1px solid var(--line); }
+  .side .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  input, select, textarea { width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); font: inherit; }
+  textarea { resize: vertical; min-height: 70px; font-family: var(--serif); }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .list { overflow: auto; flex: 1; }
+  .src { padding: 8px 12px; border-bottom: 1px solid var(--line); cursor: pointer; display: grid; grid-template-columns: 44px 1fr auto; gap: 8px; align-items: start; }
+  .src:hover { background: var(--panel-2); }
+  .src.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .src .code { font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .src .t { font-size: 13px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .src .m { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+  .ex { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; background: var(--line); }
+  .ex.Fully { background: var(--ok); } .ex.Partly { background: var(--warn); }
+  .newbtn { margin: 8px 10px; }
+  .main { overflow: auto; min-height: 0; }
+  .btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 7px; padding: 8px 14px; font: 600 13px var(--sans); cursor: pointer; white-space: nowrap; }
+  .btn.ghost { background: var(--panel-2); color: var(--ink); }
+  .btn.sm { padding: 5px 10px; font-size: 12px; }
+  .head { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
+  .head h1 { font: 600 20px/1.25 var(--serif); margin: 0; }
+  .head .code { font: 700 13px var(--sans); color: var(--accent); }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .links { display: flex; gap: 8px; flex-wrap: wrap; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: var(--panel); color: var(--ink-2); padding: 6px 10px; font: inherit; font-size: 12px; cursor: pointer; border-right: 1px solid var(--line); }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--accent); color: var(--accent-ink); }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  @media (max-width: 1000px) { .grid2 { grid-template-columns: 1fr; } }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 14px; text-align: center; color: var(--ink-3); font-size: 13px; cursor: pointer; }
+  .drop.over { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .thumbs a { display: block; width: 120px; height: 90px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel-2); position: relative; }
+  .thumbs img { width: 100%; height: 100%; object-fit: cover; }
+  .thumbs .fn { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; padding: 2px 4px; background: rgba(0,0,0,.55); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trans { white-space: pre-wrap; font-family: var(--serif); font-size: 13px; max-height: 320px; overflow: auto; background: var(--panel-2); border-radius: 8px; padding: 10px; }
+  .ev-person { margin-top: 8px; }
+  .ev-person > .pn { font-weight: 600; margin-bottom: 2px; }
+  .ev-row { display: grid; grid-template-columns: 110px 1fr auto; gap: 8px; align-items: start; font-size: 13px; padding: 3px 0; border-top: 1px dashed var(--line); }
+  .ev-row .badge { justify-self: start; }
+  .ev-row .q { font-family: var(--serif); font-style: italic; }
+  .form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .form .w2 { grid-column: span 2; } .form .w4 { grid-column: 1 / -1; }
+  @media (max-width: 560px) { .form { grid-template-columns: 1fr 1fr; } }
+  .f label { display: block; font-size: 11px; color: var(--ink-3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+  .picked { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .msg { font-size: 12px; color: var(--ok); margin-left: 8px; }
+  .msg.err { color: var(--bad); }
+  details summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
+</style>
+</head>
+<body>
+<aside class="side">
+  <div class="filters">
+    <input id="q" type="search" placeholder="Search sources…">
+    <div class="row2"><select id="fType"></select><select id="fEx"></select></div>
+  </div>
+  <button class="btn newbtn" id="newBtn">+ New source</button>
+  <div class="list" id="list"><div class="loading">Loading…</div></div>
+</aside>
+<main class="main"><div class="wrap" id="main"></div></main>
+<script>
+const esc = FH.esc;
+const TABLES = ['Sources', 'Evidence', 'People', 'Places', 'Names', 'Conclusions', 'Ancestry_Sync', 'Searches', '_grist_Attachments'];
+let data = null, choices = {}, selected = null, mode = 'view', token = null, tokenAt = 0, t = null;
+
+grist.ready({ requiredAccess: 'full', columns: [] });
+FH.followTheme();
+grist.onRecord(rec => { if (rec && mode !== 'new') { selected = rec.id; } reload(); });
+grist.onRecords(() => reload());
+['q', 'fType', 'fEx'].forEach(id => document.getElementById(id).addEventListener('input', renderList));
+document.getElementById('newBtn').onclick = () => { mode = 'new'; renderMain(); };
+
+function reload() { clearTimeout(t); t = setTimeout(load, 120); }
+async function load() {
+  data = await FH.load(TABLES);
+  await loadChoices();
+  fillFilters();
+  if (!data.byId.Sources.has(selected) && data.Sources.length) selected = data.Sources[0].id;
+  renderList(); renderMain();
+}
+async function loadChoices() {
+  try {
+    const cols = FH.rows(await grist.docApi.fetchTable('_grist_Tables_column'));
+    const tabs = FH.rows(await grist.docApi.fetchTable('_grist_Tables'));
+    const tid = new Map(tabs.map(x => [x.id, x.tableId]));
+    choices = {};
+    cols.forEach(c => { if (c.type === 'Choice' && c.widgetOptions) { try { choices[tid.get(c.parentId) + '.' + c.colId] = JSON.parse(c.widgetOptions).choices || []; } catch (e) {} } });
+  } catch (e) { choices = {}; }
+}
+const ch = k => choices[k] || [];
+async function tok() {
+  if (!token || Date.now() - tokenAt > 4 * 60 * 1000) { token = await grist.docApi.getAccessToken({ readOnly: false }); tokenAt = Date.now(); }
+  return token;
+}
+function fillFilters() {
+  const ft = document.getElementById('fType'), fe = document.getElementById('fEx');
+  const kt = ft.value, ke = fe.value;
+  ft.innerHTML = '<option value="">All types</option>' + ch('Sources.Record_Type').map(x => `<option>${esc(x)}</option>`).join('');
+  fe.innerHTML = '<option value="">Any status</option>' + ch('Sources.Extraction').map(x => `<option>${esc(x)}</option>`).join('') + '<option value="__img">No image yet</option>';
+  ft.value = kt; fe.value = ke;
+}
+const codeNum = c => { const m = String(c || '').match(/\d+/); return m ? +m[0] : 0; };
+const exClass = s => (s || '').split(' ')[0];
+
+function renderList() {
+  if (!data) return;
+  const q = document.getElementById('q').value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const ft = document.getElementById('fType').value, fe = document.getElementById('fEx').value;
+  const rows = data.Sources.filter(s => {
+    if (ft && s.Record_Type !== ft) return false;
+    if (fe === '__img') { if (FH.list(s.Images).length) return false; }
+    else if (fe && s.Extraction !== fe) return false;
+    if (q) { const hay = `${s.Code} ${s.Title} ${s.Notes} ${s.Film_DGS}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); if (!q.split(/\s+/).every(w => hay.includes(w))) return false; }
+    return true;
+  }).sort((a, b) => codeNum(b.Code) - codeNum(a.Code));
+  document.getElementById('list').innerHTML = rows.map(s => {
+    const n = s.Evidence_Count != null ? s.Evidence_Count : data.Evidence.filter(e => e.Source === s.id).length;
+    const img = FH.list(s.Images).length;
+    return `<div class="src ${s.id === selected && mode !== 'new' ? 'sel' : ''}" data-id="${s.id}"><div class="code">${esc(s.Code || '')}</div>
+      <div><div class="t">${esc(s.Title || '(untitled)')}</div><div class="m">${esc([s.Record_Type, s.Year].filter(Boolean).join(' · '))}${n ? ` · ${n} evidence` : ''}${img ? ` · 🖼 ${img}` : ''}</div></div>
+      <div class="ex ${exClass(s.Extraction)}" title="${esc(s.Extraction || 'Not extracted')}"></div></div>`;
+  }).join('') || '<div class="empty" style="padding:14px">No sources match.</div>';
+  const selEl = document.querySelector('.src.sel'); if (selEl) selEl.scrollIntoView({ block: 'nearest' });
+  document.querySelectorAll('.src').forEach(el => el.onclick = () => { mode = 'view'; selected = +el.dataset.id; grist.setCursorPos({ rowId: selected }).catch(() => {}); renderList(); renderMain(); });
+}
+
+function opts(list, cur, blank = true) { return (blank ? '<option value=""></option>' : '') + list.map(x => `<option ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join(''); }
+function placeOpts(cur) { return '<option value="0"></option>' + data.Places.slice().sort((a, b) => (a.Name || '').localeCompare(b.Name || '')).map(p => `<option value="${p.id}" ${p.id === cur ? 'selected' : ''}>${esc(p.Name)}</option>`).join(''); }
+const card = (title, body, extra = '') => `<div class="card"><div class="section-title">${title}${extra}</div>${body}</div>`;
+
+function renderMain() {
+  const m = document.getElementById('main');
+  if (!data) return;
+  if (mode === 'new') return renderNew(m);
+  const s = data.byId.Sources.get(selected);
+  if (!s) { m.innerHTML = '<div class="empty">No source selected.</div>'; return; }
+  const place = data.byId.Places.get(s.Place);
+  const ev = data.Evidence.filter(e => e.Source === s.id);
+  const byPerson = new Map();
+  ev.forEach(e => { if (!byPerson.has(e.Person)) byPerson.set(e.Person, []); byPerson.get(e.Person).push(e); });
+  const names = data.Names.filter(n => n.Source === s.id);
+  const cons = data.Conclusions.filter(c => FH.list(c.Sources).includes(s.id));
+  const anc = data.Ancestry_Sync.filter(a => a.Source === s.id);
+  const imgs = FH.list(s.Images);
+  const att = data.byId._grist_Attachments;
+
+  m.innerHTML = `
+  <div class="card">
+    <div class="head"><div><div class="code">${esc(s.Code || '')}</div><h1>${esc(s.Title || '(untitled)')}</h1></div>
+      <div class="links">${s.Record_URL ? `<a class="btn ghost sm" href="${esc(s.Record_URL)}" target="_blank" rel="noopener">Record ↗</a>` : ''}${s.Image_URL ? `<a class="btn sm" href="${esc(s.Image_URL)}" target="_blank" rel="noopener">Image ↗</a>` : ''}</div></div>
+    <div class="meta">${[s.Record_Type, s.Year, place && place.Name, s.Repository, s.Film_DGS && ('Film ' + s.Film_DGS), s.Image_No && ('img ' + s.Image_No)].filter(Boolean).map(x => `<span class="badge">${esc(x)}</span>`).join('')}</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="muted" style="font-size:12px">Extraction</span>
+      <div class="seg" id="exSeg">${ch('Sources.Extraction').map(x => `<button data-v="${esc(x)}" class="${s.Extraction === x ? 'on' : ''}">${esc(x)}</button>`).join('')}</div>
+      ${s.Extracted_On ? `<span class="faint" style="font-size:12px">on ${FH.fmtDate(s.Extracted_On)}</span>` : ''}
+      <button class="btn ghost sm" id="editBtn">Edit details</button><span class="msg" id="topMsg"></span>
+    </div>
+    ${s.Notes ? `<div class="muted" style="margin-top:8px;font-size:13px;white-space:pre-wrap">${esc(s.Notes)}</div>` : ''}
+    <div id="editBox"></div>
+  </div>
+  <div class="grid2" style="margin-top:12px">
+    <div class="stack">
+      ${card('Images', `${imgs.length ? `<div class="thumbs">${imgs.map(id => { const a = att && att.get(id); const fn = a ? a.fileName : 'file'; const isImg = /\.(jpe?g|png|gif|webp|bmp|tiff?)$/i.test(fn); return `<a href="#" data-att="${id}" title="${esc(fn)}">${isImg ? `<img data-att-img="${id}" alt="">` : ''}<span class="fn">${esc(fn)}</span></a>`; }).join('')}</div>` : ''}
+        <label class="drop" id="drop">Drop images here, paste (Ctrl+V), or click to choose<input type="file" id="file" multiple accept="image/*,application/pdf" hidden></label><span class="msg" id="upMsg"></span>`, `<span class="count">${imgs.length}</span>`)}
+      ${card('Transcription', `${s.Transcription ? `<div class="trans">${esc(s.Transcription)}</div>` : '<div class="empty">None yet.</div>'}
+        <details style="margin-top:8px"><summary>Edit transcription</summary><textarea id="trans" rows="10">${esc(s.Transcription || '')}</textarea>
+        <div style="margin-top:6px"><button class="btn sm" id="saveTrans">Save</button><span class="msg" id="trMsg"></span></div></details>`)}
+    </div>
+    <div class="stack">
+      ${card('Evidence from this source', [...byPerson.entries()].map(([pid, rows]) => { const p = data.byId.People.get(pid); return `<div class="ev-person"><div class="pn">${esc(p ? p.Name : '(no person)')}</div>${rows.map(e => `<div class="ev-row"><span class="badge">${esc(e.Fact || '')}</span><span class="q">${esc(e.As_Written || '')}${e.Age != null ? ` <span class="faint">(age ${e.Age})</span>` : ''}</span><span class="faint">${esc(e.Info_Type || '')}</span></div>`).join('')}</div>`; }).join('') || '<div class="empty">Nothing extracted yet.</div>', `<span class="count">${ev.length}</span>`)}
+      ${card('Add evidence', evidenceForm(s))}
+      ${names.length ? card('Names as written here', `<div style="display:flex;flex-wrap:wrap;gap:6px">${names.map(n => `<span class="badge">${esc(n.Name_As_Written)}</span>`).join('')}</div>`) : ''}
+      ${cons.length ? card('Cited by conclusions', cons.map(c => `<div style="font-size:13px;padding:3px 0"><b>${esc(c.Code)}</b> · ${esc(c.Title)}</div>`).join('')) : ''}
+      ${anc.length ? card('Ancestry sync', anc.map(a => `<div style="font-size:13px;padding:3px 0">${esc(a.Ancestry_Title || '')} · <span class="badge">${esc(a.Status || '')}</span> ${esc(a.Checklist || '')}</div>`).join('')) : ''}
+    </div>
+  </div>`;
+  wireView(s);
+}
+
+function evidenceForm(s) {
+  return `<div class="form" id="evForm">
+    <div class="f w4"><label>Person</label><div class="search" id="evPerson"></div><div class="picked" id="evPicked"><span class="faint" style="font-size:12px">Pick who this fact is about.</span></div></div>
+    <div class="f"><label>Fact</label><select id="evFact">${opts(ch('Evidence.Fact'), 'Age', false)}</select></div>
+    <div class="f"><label>Record date</label><input id="evDate" type="date" value="${s.Year ? s.Year + '-01-01' : ''}"></div>
+    <div class="f"><label>Age stated</label><input id="evAge" type="number" step="0.5" min="0"></div>
+    <div class="f"><label>Info</label><select id="evInfo">${opts(ch('Evidence.Info_Type'), 'Secondary', false)}</select></div>
+    <div class="f w4"><label>As written</label><input id="evAs" placeholder="Exact words from the record"></div>
+    <div class="f w2"><label>Place</label><select id="evPlace">${placeOpts(s.Place)}</select></div>
+    <div class="f w2"><label>Notes</label><input id="evNotes"></div>
+    <div class="w4"><button class="btn" id="evAdd">Add evidence</button><label style="font-size:12px;margin-left:10px"><input type="checkbox" id="evKeep" style="width:auto"> keep person selected</label><span class="msg" id="evMsg"></span></div>
+  </div>`;
+}
+
+let evPerson = null;
+function wireView(s) {
+  const $ = id => document.getElementById(id);
+  // extraction status
+  $('exSeg').querySelectorAll('button').forEach(b => b.onclick = async () => {
+    const v = b.dataset.v, upd = { Extraction: v };
+    if (v === 'Fully extracted' || v === 'Partly extracted') upd.Extracted_On = Math.floor(Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()) / 1000);
+    await grist.docApi.applyUserActions([['UpdateRecord', 'Sources', s.id, upd]]); reload();
+  });
+  $('editBtn').onclick = () => { $('editBox').innerHTML = sourceForm(s); wireSourceForm(s); };
+  // images
+  loadThumbs();
+  const drop = $('drop'), file = $('file');
+  file.onchange = () => upload(s, [...file.files]);
+  ['dragenter', 'dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', ev => upload(s, [...ev.dataTransfer.files]));
+  document.onpaste = ev => { const f = [...(ev.clipboardData || {}).files || []]; if (f.length && mode === 'view') upload(s, f); };
+  document.querySelectorAll('[data-att]').forEach(a => a.onclick = async ev => { ev.preventDefault(); const k = await tok(); window.open(`${k.baseUrl}/attachments/${a.dataset.att}/download?auth=${k.token}`, '_blank'); });
+  // transcription
+  $('saveTrans').onclick = async () => { await grist.docApi.applyUserActions([['UpdateRecord', 'Sources', s.id, { Transcription: $('trans').value }]]); $('trMsg').textContent = 'Saved.'; reload(); };
+  // evidence
+  const pick = id => { evPerson = id; const p = data.byId.People.get(id); $('evPicked').innerHTML = p ? `<span class="chip">${esc(p.Name)} <span class="sub">${esc(FH.lifespan(p))}</span></span>` : ''; };
+  FH.personSearch($('evPerson'), () => data.People, pick);
+  if (evPerson && data.byId.People.has(evPerson) && keepPerson) pick(evPerson); else evPerson = null;
+  $('evKeep').checked = keepPerson;
+  $('evAdd').onclick = async () => {
+    if (!evPerson) { $('evMsg').className = 'msg err'; $('evMsg').textContent = 'Pick a person first.'; return; }
+    const dv = $('evDate').value, age = parseFloat($('evAge').value);
+    const rec = { Person: evPerson, Source: s.id, Fact: $('evFact').value, As_Written: $('evAs').value, Info_Type: $('evInfo').value, Place: +$('evPlace').value || 0, Notes: $('evNotes').value };
+    if (dv) rec.Record_Date = Date.UTC(+dv.slice(0, 4), +dv.slice(5, 7) - 1, +dv.slice(8, 10)) / 1000;
+    if (!isNaN(age)) rec.Age = age;
+    await grist.docApi.applyUserActions([['AddRecord', 'Evidence', null, rec]]);
+    keepPerson = $('evKeep').checked;
+    const extra = s.Extraction === 'Not extracted' || !s.Extraction;
+    if (extra) await grist.docApi.applyUserActions([['UpdateRecord', 'Sources', s.id, { Extraction: 'Partly extracted' }]]);
+    reload();
+  };
+}
+let keepPerson = false;
+
+async function loadThumbs() {
+  const imgs = document.querySelectorAll('[data-att-img]');
+  if (!imgs.length) return;
+  try { const k = await tok(); imgs.forEach(i => i.src = `${k.baseUrl}/attachments/${i.dataset.attImg}/download?auth=${k.token}`); } catch (e) {}
+}
+async function upload(s, files) {
+  const msg = document.getElementById('upMsg');
+  if (!files.length) return;
+  msg.className = 'msg'; msg.textContent = `Uploading ${files.length}…`;
+  try {
+    const k = await tok();
+    const fd = new FormData(); files.forEach(f => fd.append('upload', f, f.name || 'pasted.png'));
+    const r = await fetch(`${k.baseUrl}/attachments?auth=${k.token}`, { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 120));
+    const ids = await r.json();
+    const cur = FH.list(data.byId.Sources.get(s.id).Images);
+    await grist.docApi.applyUserActions([['UpdateRecord', 'Sources', s.id, { Images: ['L', ...cur, ...ids] }]]);
+    msg.textContent = `Added ${ids.length} file${ids.length > 1 ? 's' : ''}.`; reload();
+  } catch (e) { msg.className = 'msg err'; msg.textContent = 'Upload failed: ' + e.message; }
+}
+
+function sourceForm(s) {
+  s = s || {};
+  return `<div class="form" style="margin-top:12px" id="srcForm">
+    <div class="f"><label>Code</label><input id="sCode" value="${esc(s.Code || nextCode())}"></div>
+    <div class="f"><label>Type</label><select id="sType">${opts(ch('Sources.Record_Type'), s.Record_Type)}</select></div>
+    <div class="f"><label>Year</label><input id="sYear" type="number" value="${s.Year || ''}"></div>
+    <div class="f"><label>Repository</label><select id="sRepo">${opts(ch('Sources.Repository'), s.Repository)}</select></div>
+    <div class="f w4"><label>Title</label><input id="sTitle" value="${esc(s.Title || '')}" placeholder="What, who, where, when"></div>
+    <div class="f w2"><label>Place</label><select id="sPlace">${placeOpts(s.Place)}</select></div>
+    <div class="f"><label>Film / DGS</label><input id="sFilm" value="${esc(s.Film_DGS || '')}"></div>
+    <div class="f"><label>Image no.</label><input id="sImgNo" type="number" value="${s.Image_No || ''}"></div>
+    <div class="f w2"><label>Record link</label><input id="sRec" value="${esc(s.Record_URL || '')}"></div>
+    <div class="f w2"><label>Image link</label><input id="sImg" value="${esc(s.Image_URL || '')}"></div>
+    <div class="f w4"><label>Notes</label><input id="sNotes" value="${esc(s.Notes || '')}"></div>
+    <div class="w4"><button class="btn" id="sSave">${s.id ? 'Save changes' : 'Create source'}</button> <button class="btn ghost" id="sCancel">Cancel</button><span class="msg" id="sMsg"></span></div>
+  </div>`;
+}
+function nextCode() { return 'S' + (Math.max(0, ...data.Sources.map(x => codeNum(x.Code))) + 1); }
+function cleanUrl(u) { try { const x = new URL(u); ['_gl', '_ga', 'utm_source', 'utm_medium', 'utm_campaign'].forEach(k => x.searchParams.delete(k)); return x.toString(); } catch (e) { return u; } }
+function wireSourceForm(s) {
+  const $ = id => document.getElementById(id);
+  $('sCancel').onclick = () => { if (s) { $('editBox').innerHTML = ''; } else { mode = 'view'; renderMain(); } };
+  $('sSave').onclick = async () => {
+    const rec = { Code: $('sCode').value.trim(), Record_Type: $('sType').value, Year: parseInt($('sYear').value, 10) || null, Repository: $('sRepo').value,
+      Title: $('sTitle').value.trim(), Place: +$('sPlace').value || 0, Film_DGS: $('sFilm').value.trim(), Image_No: parseInt($('sImgNo').value, 10) || null,
+      Record_URL: cleanUrl($('sRec').value.trim()), Image_URL: cleanUrl($('sImg').value.trim()), Notes: $('sNotes').value };
+    if (!rec.Title) { $('sMsg').className = 'msg err'; $('sMsg').textContent = 'Give it a title.'; return; }
+    if (s && s.id) { await grist.docApi.applyUserActions([['UpdateRecord', 'Sources', s.id, rec]]); }
+    else {
+      rec.Extraction = 'Not extracted';
+      const r = await grist.docApi.applyUserActions([['AddRecord', 'Sources', null, rec]]);
+      selected = r.retValues[0]; mode = 'view'; grist.setCursorPos({ rowId: selected }).catch(() => {});
+    }
+    reload();
+  };
+}
+function renderNew(m) {
+  m.innerHTML = `<div class="card"><div class="section-title">New source</div><div class="muted" style="font-size:13px">Paste the FamilySearch or Ancestry links. Tracking junk is stripped from the URL automatically. After creating it, drop the image in and add the evidence.</div>${sourceForm(null)}</div>`;
+  wireSourceForm(null);
+  renderList();
+}
+</script>
+</body>
+</html>

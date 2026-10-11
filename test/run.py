@@ -9,6 +9,7 @@ window.grist = {
   onRecord(cb){ setTimeout(()=>cb({id: window.__SEL || 1}), 30); },
   onRecords(cb){},
   setCursorPos: async (p)=>{ window.__cursor = p; },
+  getAccessToken: async ()=>({token:'t', baseUrl:'data:'}),
   docApi: {
     fetchTable: async (t)=>{ if(!__FX[t]) throw new Error('no table '+t); return JSON.parse(JSON.stringify(__FX[t])); },
     applyUserActions: async (acts)=>{ const ids=[]; for(const a of acts){ if(a[0]==='AddRecord'){ const t=__FX[a[1]]; const id=Math.max(0,...t.id)+1; for(const k of Object.keys(t)){ t[k].push(k==='id'?id:(a[3][k]===undefined?null:a[3][k])); } ids.push(id);} } return {retValues: ids}; }
@@ -19,6 +20,7 @@ shots = [
   ('person', 1, (1100, 1300), 'light'), ('person', 12, (1100, 1100), 'dark'), ('person', 1, (420, 1600), 'light'),
   ('tree', 2, (1300, 800), 'light'), ('tree', 1, (1300, 800), 'dark'),
   ('dna', 1, (1100, 1000), 'light'),
+  ('sources', 1, (1200, 1000), 'light'), ('sources', 1, (1200, 1000), 'dark'),
 ]
 with sync_playwright() as p:
     b = p.chromium.launch()
