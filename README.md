@@ -8,6 +8,7 @@ Custom Grist widgets for the **Family History Research** doc (Stash team site).
 | Family tree | `People` | `https://rocksrdone.github.io/gen/tree/` |
 | DNA match helper | `DNA_Matches` | `https://rocksrdone.github.io/gen/dna/` |
 | Sources workbench | `Sources` | `https://rocksrdone.github.io/gen/sources/` |
+| Record entry | `Sources` | `https://rocksrdone.github.io/gen/entry/` |
 
 ## Adding a widget in Grist
 
@@ -22,6 +23,8 @@ Custom Grist widgets for the **Family History Research** doc (Stash team site).
 - **DNA match helper**: a quick-entry form for AncestryDNA matches with a live relationship guess. For the selected match it charts where the shared cM falls on the Shared cM Project ranges. It also has a cluster summary, a list of all matches sorted by cM, and shared-match entry.
 
 - **Sources workbench**: browse and filter sources (by type, extraction status, or no image yet). Open the record or image, drag, paste or choose images to upload straight into the source, set the extraction status (which stamps the date), edit the transcription, and add evidence rows for any person without leaving the page. New sources get the next S-code, and tracking parameters are stripped from pasted links.
+
+- **Record entry**: paste an Ancestry or FamilySearch link (film, image and record IDs are pulled out, tracking junk removed), pick the record type and get a role-based form (baptism/birth: child, parents, grandparents; marriage: couple and both sets of parents; death; census household). Names are matched to people already in the doc, including alternate spellings (b/v, s/z, g/j). One Save creates the source, new people, evidence rows (age, origin, residence, occupation, marital status, "finado"), name spellings and relationships, adding the source as proof to relationships that already exist.
 
 ## Tables and columns the widgets expect
 

@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Record Entry</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/common.js"></script>
+<style>
+  .wrap { max-width: 1150px; }
+  h2 { font: 600 15px var(--sans); margin: 0 0 10px; display: flex; gap: 8px; align-items: center; }
+  h2 .n { background: var(--accent); color: var(--accent-ink); width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 12px; }
+  .card + .card { margin-top: 12px; }
+  input, select, textarea { width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); font: inherit; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input[type=checkbox] { width: auto; }
+  .f label { display: block; font-size: 11px; color: var(--ink-3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+  .g { display: grid; gap: 8px; }
+  .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .g6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .s2 { grid-column: span 2; } .s3 { grid-column: span 3; } .s4 { grid-column: span 4; } .all { grid-column: 1 / -1; }
+  @media (max-width: 760px) { .g4, .g6 { grid-template-columns: 1fr 1fr; } .s3, .s4 { grid-column: 1 / -1; } }
+  .parsed { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; min-height: 20px; }
+  .btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 7px; padding: 8px 14px; font: 600 13px var(--sans); cursor: pointer; white-space: nowrap; }
+  .btn.ghost { background: var(--panel-2); color: var(--ink); }
+  .btn.sm { padding: 5px 10px; font-size: 12px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; }
+  .pc { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--panel); }
+  .pc.empty-row { opacity: .6; }
+  .pc .top { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .pc .role { font-weight: 700; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: .05em; flex: 1; }
+  .pc .x { border: 0; background: none; color: var(--ink-3); cursor: pointer; font-size: 16px; }
+  .pc .name { font-family: var(--serif); font-size: 15px; }
+  .match { display: flex; gap: 5px; flex-wrap: wrap; margin: 6px 0; }
+  .mchip { border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px; font-size: 12px; cursor: pointer; background: var(--panel); color: var(--ink); }
+  .mchip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .mchip .sub { opacity: .7; font-size: 11px; }
+  .det { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .det input, .det select { padding: 5px 7px; font-size: 13px; }
+  .det .w2 { grid-column: span 2; } .det .w3 { grid-column: 1 / -1; }
+  .chk { font-size: 12px; color: var(--ink-2); display: flex; gap: 5px; align-items: center; }
+  .addrow { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+  .addrow select { width: auto; }
+  .plan { font-size: 13px; }
+  .plan li { margin: 2px 0; }
+  .plan .k { color: var(--ink-3); }
+  .msg { font-size: 13px; margin-left: 10px; }
+  .msg.ok { color: var(--ok); } .msg.err { color: var(--bad); }
+  .done { background: var(--ok-bg); color: var(--ok); border-radius: 8px; padding: 10px 12px; margin-top: 10px; font-size: 14px; }
+  .hint { font-size: 12px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h2><span class="n">1</span> The record</h2>
+    <div class="g g6">
+      <div class="f all"><label>Link (Ancestry or FamilySearch record or image)</label><input id="link" placeholder="Paste a link…"><div class="parsed" id="parsed"></div></div>
+      <div class="f s2"><label>Add to</label><select id="srcMode"><option value="new">A new source</option></select></div>
+      <div class="f s2"><label>Record type</label><select id="type"></select></div>
+      <div class="f"><label>Record date</label><input id="rdate" type="date"></div>
+      <div class="f"><label id="edateLbl">Event date</label><input id="edate" type="date"></div>
+      <div class="f s2"><label>Place of record</label><select id="place"></select></div>
+      <div class="f"><label>Code</label><input id="code"></div>
+      <div class="f"><label>Repository</label><select id="repo"></select></div>
+      <div class="f"><label>Film / DGS</label><input id="film"></div>
+      <div class="f"><label>Image no.</label><input id="imgno" type="number"></div>
+      <div class="f all"><label>Title <span class="hint">(filled in from the people below until you edit it)</span></label><input id="title"></div>
+      <div class="f s3"><label>Book / page / entry</label><input id="cite" placeholder="e.g. Liber Matrimoniorum 1938, p. 25, no. 6"></div>
+      <div class="f s3"><label>Witnesses, priest, notes about the whole record</label><input id="snotes"></div>
+      <div class="f all"><label>Transcription (optional)</label><textarea id="trans" rows="3"></textarea></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">2</span> People in the record</h2>
+    <div class="hint" style="margin-bottom:8px">Type each name exactly as written. Pick the matching person already in the doc, or leave <b>New person</b> selected. Fill in only what the record says, and leave a person's name blank to skip them.</div>
+    <div class="people" id="people"></div>
+    <div class="addrow"><select id="addRole"></select><button class="btn ghost sm" id="addBtn">+ Add person</button></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">3</span> Review and save</h2>
+    <div class="g g4" style="margin-bottom:8px">
+      <div class="f s2"><label>Relationship confidence</label><select id="conf"></select></div>
+      <div class="f s2" style="align-self:end"><label class="chk"><input type="checkbox" id="fully" checked> Mark the source as fully extracted</label></div>
+    </div>
+    <ul class="plan" id="plan"></ul>
+    <div><button class="btn" id="save">Save everything</button><button class="btn ghost" id="reset" style="margin-left:6px">Clear form</button><span class="msg" id="msg"></span></div>
+    <div id="done"></div>
+  </div>
+</div>
+<script>
+const esc = FH.esc;
+let data = null, choices = {}, rows = [], titleEdited = false, lastSrc = null;
+
+// ---------- roles per record type ----------
+const ROLE = {
+  child: { label: 'Child', sex: '' }, father: { label: 'Father', sex: 'M' }, mother: { label: 'Mother', sex: 'F' },
+  pgf: { label: "Father's father", sex: 'M' }, pgm: { label: "Father's mother", sex: 'F' }, mgf: { label: "Mother's father", sex: 'M' }, mgm: { label: "Mother's mother", sex: 'F' },
+  groom: { label: 'Groom', sex: 'M' }, bride: { label: 'Bride', sex: 'F' },
+  gf: { label: "Groom's father", sex: 'M' }, gm: { label: "Groom's mother", sex: 'F' }, bf: { label: "Bride's father", sex: 'M' }, bm: { label: "Bride's mother", sex: 'F' },
+  deceased: { label: 'Deceased', sex: '' }, spouse: { label: 'Spouse', sex: '' }, informant: { label: 'Informant', sex: '' },
+  head: { label: 'Head', sex: '' }, wife: { label: 'Wife', sex: 'F' }, hchild: { label: 'Child in household', sex: '' }, other: { label: 'Other person', sex: '' },
+  godparent: { label: 'Godparent', sex: '' }, witness: { label: 'Witness', sex: '' }
+};
+const TEMPLATES = {
+  birth: ['child', 'father', 'mother', 'pgf', 'pgm', 'mgf', 'mgm'],
+  marriage: ['groom', 'bride', 'gf', 'gm', 'bf', 'bm'],
+  death: ['deceased', 'spouse', 'father', 'mother', 'informant'],
+  census: ['head', 'wife', 'hchild', 'hchild', 'hchild'],
+  other: ['other', 'other']
+};
+const kindOf = t => /bapt|birth|naci/i.test(t) ? 'birth' : /marr|matri/i.test(t) ? 'marriage' : /death|burial|defun/i.test(t) ? 'death' : /census/i.test(t) ? 'census' : 'other';
+const PRINCIPAL = { birth: 'child', marriage: 'groom', death: 'deceased', census: 'head', other: 'other' };
+
+grist.ready({ requiredAccess: 'full', columns: [] });
+FH.followTheme();
+load();
+
+async function load() {
+  data = await FH.load(['People', 'Places', 'Sources', 'Relationships', 'Names']);
+  try {
+    const cols = FH.rows(await grist.docApi.fetchTable('_grist_Tables_column'));
+    const tabs = new Map(FH.rows(await grist.docApi.fetchTable('_grist_Tables')).map(t => [t.id, t.tableId]));
+    choices = {};
+    cols.forEach(c => { if (c.type === 'Choice' && c.widgetOptions) try { choices[tabs.get(c.parentId) + '.' + c.colId] = JSON.parse(c.widgetOptions).choices || []; } catch (e) {} });
+  } catch (e) {}
+  initForm();
+}
+const ch = k => choices[k] || [];
+const $ = id => document.getElementById(id);
+const opts = (list, cur) => list.map(x => `<option ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('');
+const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+const codeNum = c => { const m = String(c || '').match(/\d+/); return m ? +m[0] : 0; };
+
+function initForm() {
+  $('type').innerHTML = opts(ch('Sources.Record_Type'), 'Baptism');
+  $('repo').innerHTML = '<option></option>' + opts(ch('Sources.Repository'), '');
+  $('conf').innerHTML = opts(ch('Relationships.Confidence').length ? ch('Relationships.Confidence') : ['Proven', 'Probable', 'Possible'], 'Proven');
+  fillPlaces();
+  $('srcMode').innerHTML = '<option value="new">A new source</option>' + data.Sources.slice().sort((a, b) => codeNum(b.Code) - codeNum(a.Code)).map(s => `<option value="${s.id}">${esc(s.Code)} · ${esc((s.Title || '').slice(0, 60))}</option>`).join('');
+  $('code').value = 'S' + (Math.max(0, ...data.Sources.map(s => codeNum(s.Code))) + 1);
+  $('addRole').innerHTML = Object.entries(ROLE).map(([k, r]) => `<option value="${k}">${r.label}</option>`).join('');
+  setTemplate();
+  $('type').onchange = () => { if (rows.every(r => !r.name)) setTemplate(); updateDateLabel(); refresh(); };
+  $('link').oninput = parseLink;
+  $('title').oninput = () => { titleEdited = true; };
+  $('srcMode').onchange = () => { const isNew = $('srcMode').value === 'new'; ['code', 'repo', 'film', 'imgno', 'title', 'cite', 'trans', 'link'].forEach(id => $(id).disabled = !isNew); if (!isNew) { const s = data.byId.Sources.get(+$('srcMode').value); if (s && s.Record_Type) { $('type').value = s.Record_Type; } } refresh(); };
+  ['rdate', 'edate', 'place', 'conf', 'fully'].forEach(id => $(id).onchange = refresh);
+  $('addBtn').onclick = () => { rows.push(newRow($('addRole').value)); renderPeople(); refresh(); };
+  $('save').onclick = save;
+  $('reset').onclick = () => { if (confirm('Clear the form?')) resetForm(); };
+  updateDateLabel(); refresh();
+}
+function fillPlaces(sel) { $('place').innerHTML = '<option value="0"></option>' + data.Places.slice().sort((a, b) => (a.Name || '').localeCompare(b.Name || '')).map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.Name)}</option>`).join(''); }
+function updateDateLabel() { const k = kindOf($('type').value); $('edateLbl').textContent = { birth: 'Birth date', marriage: 'Marriage date', death: 'Death date', census: 'Census date' }[k] || 'Event date'; }
+function setTemplate() { rows = TEMPLATES[kindOf($('type').value)].map(newRow); renderPeople(); }
+function newRow(role) { return { role, name: '', match: 'new', cands: [], age: '', origin: '', residence: '', occ: '', marital: '', sex: ROLE[role].sex, dead: false, rel: '', notes: '' }; }
+function resetForm() {
+  ['link', 'film', 'imgno', 'cite', 'snotes', 'trans', 'title', 'rdate', 'edate'].forEach(id => $(id).value = '');
+  $('parsed').innerHTML = ''; titleEdited = false; $('srcMode').value = 'new'; $('srcMode').onchange(); $('done').innerHTML = ''; $('msg').textContent = '';
+  $('code').value = 'S' + (Math.max(0, ...data.Sources.map(s => codeNum(s.Code))) + 1);
+  setTemplate(); refresh();
+}
+
+// ---------- link parsing ----------
+function parseLink() {
+  const raw = $('link').value.trim(); const out = [];
+  if (!raw) { $('parsed').innerHTML = ''; return; }
+  let u; try { u = new URL(raw); } catch (e) { $('parsed').innerHTML = '<span class="badge bad">Not a link</span>'; return; }
+  ['_gl', '_ga', 'utm_source', 'utm_medium', 'utm_campaign', 'tid', 'ssrc', 'usePUB', 'usePUBJs'].forEach(k => u.searchParams.delete(k));
+  const clean = u.toString();
+  let m;
+  if (/ancestry\./.test(u.host)) {
+    $('repo').value = 'Ancestry';
+    if ((m = u.pathname.match(/imageviewer\/collections\/(\d+)\/images\/([^/?]+)/))) {
+      const [, coll, img] = m; const pid = u.searchParams.get('pId') || u.searchParams.get('pid');
+      const fm = img.match(/^(\d{6,})_(\d+)$/);
+      if (fm) { $('film').value = fm[1]; $('imgno').value = +fm[2]; }
+      $('link').dataset.image = clean; $('link').dataset.record = pid ? `https://www.ancestry.com/discoveryui-content/view/${pid}:${coll}` : '';
+      out.push(`Ancestry collection ${coll}`, `image ${img}`); if (pid) out.push(`record ${pid}`);
+    } else if ((m = u.pathname.match(/collections\/(\d+)\/records\/(\d+)/)) || (m = u.pathname.match(/view\/(\d+):(\d+)/))) {
+      const coll = u.pathname.includes('/view/') ? m[2] : m[1], rec = u.pathname.includes('/view/') ? m[1] : m[2];
+      $('link').dataset.record = `https://www.ancestry.com/discoveryui-content/view/${rec}:${coll}`; $('link').dataset.image = '';
+      out.push(`Ancestry collection ${coll}`, `record ${rec}`, 'add the image link too if you have it');
+    } else { $('link').dataset.record = clean; $('link').dataset.image = ''; out.push('Ancestry link'); }
+  } else if (/familysearch\.org/.test(u.host)) {
+    $('repo').value = 'FamilySearch';
+    if (/ark:\/61903\/1:1:/.test(u.pathname)) { $('link').dataset.record = clean; $('link').dataset.image = ''; out.push('FamilySearch indexed record'); }
+    else if (/ark:\/61903\/3:1:/.test(u.pathname)) { $('link').dataset.image = clean; $('link').dataset.record = ''; out.push('FamilySearch image'); }
+    else if (u.searchParams.get('dgs')) { const dgs = u.searchParams.get('dgs'), i = +u.searchParams.get('i'); $('film').value = dgs; if (!isNaN(i)) $('imgno').value = i + 1; $('link').dataset.image = clean; $('link').dataset.record = ''; out.push(`film ${dgs}`, `image ${i + 1}`); }
+    else { $('link').dataset.record = clean; $('link').dataset.image = ''; out.push('FamilySearch link'); }
+  } else { $('link').dataset.record = clean; $('link').dataset.image = ''; out.push('Link saved as-is'); }
+  $('parsed').innerHTML = out.map(x => `<span class="badge">${esc(x)}</span>`).join('');
+  refresh();
+}
+
+// ---------- names & matching ----------
+const TITLES = /^(sr|sra|srta|senor|senora|senorita|don|dona|d|c|cc|la|el|lic|dr|presbitero|pbro)\.?$/i;
+function cleanName(s) {
+  return (s || '').replace(/\bM[ªa]\.?(?=\s)/g, 'María').replace(/\bMa\.\s/g, 'María ').replace(/\bJ\.\s/g, 'J. ')
+    .split(/\s+/).filter(w => !TITLES.test(w.normalize('NFD').replace(/[̀-ͯ]/g, ''))).join(' ').trim();
+}
+function splitName(s, sex) {
+  let w = cleanName(s).split(/\s+/).filter(Boolean);
+  // married form "X Estrada de García": drop "de García" for women
+  const di = w.findIndex((x, i) => i > 0 && x.toLowerCase() === 'de' && i === w.length - 2);
+  let married = '';
+  if (di > 0 && sex !== 'M') { married = w.slice(di).join(' '); w = w.slice(0, di); }
+  // glue particles: de, del, de la, de los
+  const t = [];
+  for (let i = 0; i < w.length; i++) {
+    const lw = w[i].toLowerCase();
+    if ((lw === 'de' || lw === 'del') && i < w.length - 1) {
+      if (['la', 'las', 'los'].includes((w[i + 1] || '').toLowerCase()) && i < w.length - 2) { t.push(w[i] + ' ' + w[i + 1] + ' ' + w[i + 2]); i += 2; }
+      else { t.push(w[i] + ' ' + w[i + 1]); i += 1; }
+    } else t.push(w[i]);
+  }
+  if (t.length === 1) return { given: t[0], pat: '', mat: '', married };
+  // leading tokens that are known given names are given names; the rest (max 2) are surnames
+  const GIVEN = givenSet();
+  const isGiven = x => GIVEN.has(norm(x)) || /^[A-ZÁÉÍÓÚÑ]\.?$/.test(x) || /\.$/.test(x);
+  let k = 1; while (k < t.length - 1 && isGiven(t[k])) k++;
+  if (isGiven(t[0]) && /\.$/.test(t[0]) && k === 1 && t.length > 2) k = 2;
+  const sur = t.slice(k);
+  if (sur.length > 2) { k = t.length - 2; }
+  const s2 = t.slice(k);
+  return { given: t.slice(0, k).join(' '), pat: s2[0] || '', mat: s2[1] || '', married };
+}
+let _given = null;
+function givenSet() {
+  if (_given) return _given;
+  _given = new Set(['maria', 'jose', 'juan', 'jesus', 'ana', 'luz', 'guadalupe', 'refugio', 'rosa', 'carmen', 'dolores', 'francisco', 'antonio', 'manuel', 'pedro', 'miguel', 'luis', 'agapita', 'soledad', 'concepcion', 'genoveva', 'cleta', 'marcelina', 'eulogia', 'candelario', 'vicente', 'isac', 'trinidad', 'natividad', 'merced', 'asuncion', 'ascension', 'encarnacion', 'paula', 'pabla', 'teresa', 'josefa', 'juana', 'catarina', 'rafael', 'cruz']);
+  data.People.forEach(p => norm(p.Given_Names).split(' ').forEach(w => w.length > 2 && !['de', 'del', 'los', 'las'].includes(w) && _given.add(w)));
+  return _given;
+}
+function candidates(name, sex) {
+  const n = norm(cleanName(name)); if (!n) return [];
+  const words = n.split(' ').filter(x => x.length > 1 && !['de', 'la', 'del', 'los', 'y'].includes(x));
+  const alias = new Map();
+  data.Names.forEach(x => { if (!alias.has(x.Person)) alias.set(x.Person, []); alias.get(x.Person).push(norm(x.Name_As_Written)); });
+  const syn = w => [w, w.replace(/v/g, 'b'), w.replace(/b/g, 'v'), w.replace(/z/g, 's'), w.replace(/s/g, 'z'), w.replace(/j/g, 'g'), w.replace(/g/g, 'j')];
+  return data.People.map(p => {
+    if (sex && p.Sex && p.Sex !== '?' && p.Sex !== sex) return null;
+    const hay = [norm(p.Name), ...(alias.get(p.id) || [])].join(' | ');
+    let hit = 0; words.forEach(w => { if (syn(w).some(v => hay.includes(v))) hit++; });
+    const score = hit / Math.max(words.length, 1);
+    const exact = [norm(p.Name), ...(alias.get(p.id) || [])].includes(n);
+    return score >= 0.5 ? { id: p.id, score: exact ? 2 : score } : null;
+  }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 4);
+}
+
+// ---------- people cards ----------
+function renderPeople() {
+  const maritals = ['', 'soltero/a', 'casado/a', 'viudo/a', 'célibe', 'divorciado/a'];
+  $('people').innerHTML = rows.map((r, i) => {
+    const sexSel = `<select data-k="sex" data-i="${i}"><option value="">Sex?</option><option value="M" ${r.sex === 'M' ? 'selected' : ''}>Male</option><option value="F" ${r.sex === 'F' ? 'selected' : ''}>Female</option></select>`;
+    const chips = r.name ? r.cands.map(c => { const p = data.byId.People.get(c.id); return `<span class="mchip ${r.match === c.id ? 'on' : ''}" data-m="${c.id}" data-i="${i}">${esc(p.Name)} <span class="sub">${esc(FH.lifespan(p))}</span></span>`; }).join('') + `<span class="mchip ${r.match === 'new' ? 'on' : ''}" data-m="new" data-i="${i}">＋ New person</span>` : '';
+    return `<div class="pc ${r.name ? '' : 'empty-row'}">
+      <div class="top"><span class="role">${ROLE[r.role].label}</span><button class="x" data-del="${i}" title="Remove">×</button></div>
+      <input class="name" data-k="name" data-i="${i}" value="${esc(r.name)}" placeholder="Name as written">
+      <div class="match" id="m${i}">${chips}</div>
+      <div class="det">
+        <input data-k="age" data-i="${i}" value="${esc(r.age)}" placeholder="Age" inputmode="decimal">
+        ${sexSel}
+        <select data-k="marital" data-i="${i}">${maritals.map(x => `<option ${x === r.marital ? 'selected' : ''} value="${x}">${x || 'Marital?'}</option>`).join('')}</select>
+        <input class="w3" data-k="origin" data-i="${i}" value="${esc(r.origin)}" placeholder="Born / originario de…">
+        <input class="w2" data-k="residence" data-i="${i}" value="${esc(r.residence)}" placeholder="Living in / vecino de…">
+        <input data-k="occ" data-i="${i}" value="${esc(r.occ)}" placeholder="Occupation">
+        ${['hchild', 'other', 'witness', 'godparent', 'informant'].includes(r.role) ? `<input class="w3" data-k="rel" data-i="${i}" value="${esc(r.rel)}" placeholder="Relationship as written (hijo, nieta, hermano…)">` : ''}
+        <input class="w3" data-k="notes" data-i="${i}" value="${esc(r.notes)}" placeholder="Notes">
+        <label class="chk w3"><input type="checkbox" data-k="dead" data-i="${i}" ${r.dead ? 'checked' : ''}> Recorded as deceased (finado/a, difunto/a)</label>
+      </div></div>`;
+  }).join('');
+  $('people').querySelectorAll('[data-k]').forEach(el => {
+    const i = +el.dataset.i, k = el.dataset.k;
+    el.addEventListener(el.type === 'checkbox' || el.tagName === 'SELECT' ? 'change' : 'input', () => {
+      rows[i][k] = el.type === 'checkbox' ? el.checked : el.value;
+      if (k === 'name') { rematch(i); }
+      if (k === 'sex') rematch(i);
+      refresh();
+    });
+  });
+  $('people').querySelectorAll('[data-m]').forEach(el => el.onclick = () => { const i = +el.dataset.i; rows[i].match = el.dataset.m === 'new' ? 'new' : +el.dataset.m; renderMatch(i); refresh(); });
+  $('people').querySelectorAll('[data-del]').forEach(el => el.onclick = () => { rows.splice(+el.dataset.del, 1); renderPeople(); refresh(); });
+}
+function rematch(i) {
+  const r = rows[i]; r.cands = candidates(r.name, r.sex);
+  const [a, b] = r.cands;
+  if (a && (a.score >= 2 || (a.score >= 1 && (!b || b.score < 1)))) { if (r.match === 'new' || !r.cands.some(c => c.id === r.match)) r.match = a.id; }
+  else if (typeof r.match === 'number' && !r.cands.some(c => c.id === r.match)) r.match = 'new';
+  renderMatch(i);
+}
+function renderMatch(i) {
+  const r = rows[i], el = $('m' + i); if (!el) return;
+  el.innerHTML = r.name ? r.cands.map(c => { const p = data.byId.People.get(c.id); return `<span class="mchip ${r.match === c.id ? 'on' : ''}" data-m="${c.id}" data-i="${i}">${esc(p.Name)} <span class="sub">${esc(FH.lifespan(p))}</span></span>`; }).join('') + `<span class="mchip ${r.match === 'new' ? 'on' : ''}" data-m="new" data-i="${i}">＋ New person</span>` : '';
+  el.querySelectorAll('[data-m]').forEach(c => c.onclick = () => { rows[i].match = c.dataset.m === 'new' ? 'new' : +c.dataset.m; renderMatch(i); refresh(); });
+  el.closest('.pc').classList.toggle('empty-row', !r.name);
+}
+
+// ---------- plan ----------
+const dsec = v => { if (!v) return null; return Date.UTC(+v.slice(0, 4), +v.slice(5, 7) - 1, +v.slice(8, 10)) / 1000; };
+const active = () => rows.map((r, i) => ({ ...r, i })).filter(r => r.name.trim());
+const label = r => r.match === 'new' ? `${cleanName(r.name)} (new)` : (data.byId.People.get(r.match) || {}).Name;
+function relPlan(list) {
+  const kind = kindOf($('type').value);
+  const by = role => list.filter(r => r.role === role);
+  const one = role => by(role)[0];
+  const out = [];
+  const par = (p, c) => p && c && out.push(['Parent of', p, c]);
+  const sp = (a, b) => a && b && out.push(['Spouse of', a, b]);
+  if (kind === 'birth') { const c = one('child'), f = one('father'), m = one('mother'); par(f, c); par(m, c); sp(f, m); par(one('pgf'), f); par(one('pgm'), f); sp(one('pgf'), one('pgm')); par(one('mgf'), m); par(one('mgm'), m); sp(one('mgf'), one('mgm')); }
+  if (kind === 'marriage') { const g = one('groom'), b = one('bride'); sp(g, b); par(one('gf'), g); par(one('gm'), g); sp(one('gf'), one('gm')); par(one('bf'), b); par(one('bm'), b); sp(one('bf'), one('bm')); }
+  if (kind === 'death') { const d = one('deceased'); sp(one('spouse'), d); par(one('father'), d); par(one('mother'), d); sp(one('father'), one('mother')); }
+  if (kind === 'census') { const h = one('head'), w = one('wife'); sp(h, w); by('hchild').forEach(c => { if (!c.rel || /hij/i.test(c.rel)) { par(h, c); par(w, c); } }); }
+  return out;
+}
+function factsFor(r) {
+  const kind = kindOf($('type').value), f = [];
+  const ed = $('edate').value;
+  if (r.role === PRINCIPAL[kind] || (kind === 'marriage' && r.role === 'bride')) {
+    const fact = { birth: 'Birth', marriage: 'Marriage', death: 'Death', census: 'Residence' }[kind];
+    if (fact) f.push({ Fact: fact, As_Written: [$('type').value, ed && FH.fmtDate(dsec(ed)), (data.byId.Places.get(+$('place').value) || {}).Name].filter(Boolean).join(', '), date: ed || null, Info_Type: 'Primary' });
+  } else if (kind === 'census') f.push({ Fact: 'Residence', As_Written: 'in household' + (r.rel ? ` (${r.rel})` : ''), Info_Type: 'Primary' });
+  if (r.age !== '' && !isNaN(parseFloat(r.age))) f.push({ Fact: 'Age', As_Written: `${cleanName(r.name)}, ${r.age}`, Age: parseFloat(r.age), Info_Type: 'Secondary' });
+  if (r.origin) f.push({ Fact: 'Birth', As_Written: r.origin, Info_Type: 'Secondary' });
+  if (r.residence) f.push({ Fact: 'Residence', As_Written: r.residence, Info_Type: 'Primary' });
+  if (r.occ) f.push({ Fact: 'Occupation', As_Written: r.occ, Info_Type: 'Primary' });
+  if (r.marital) f.push({ Fact: 'Marital status', As_Written: r.marital, Info_Type: 'Primary' });
+  if (r.dead) f.push({ Fact: 'Death', As_Written: 'recorded as deceased (finado/a)', Info_Type: 'Secondary', note: 'Dead by the record date.' });
+  if (['witness', 'godparent', 'informant'].includes(r.role)) f.push({ Fact: 'Other', As_Written: `${ROLE[r.role].label}${r.rel ? ' (' + r.rel + ')' : ''}`, Info_Type: 'Primary' });
+  if (r.notes) f.forEach(x => x.note = [x.note, r.notes].filter(Boolean).join(' '));
+  return f;
+}
+function autoTitle() {
+  const kind = kindOf($('type').value), list = active(), n = r => r ? cleanName(r.name) : '';
+  const one = role => list.find(r => r.role === role);
+  const pl = data.byId.Places.get(+$('place').value); const where = pl ? `, ${pl.Name}` : '';
+  const d = $('edate').value || $('rdate').value; const when = d ? `, ${FH.fmtDate(dsec(d))}` : '';
+  const t = $('type').value;
+  if (kind === 'birth' && one('child')) return `${t} of ${n(one('child'))}${where}${when}` + (one('father') || one('mother') ? `. Parents: ${[n(one('father')), n(one('mother'))].filter(Boolean).join(' & ')}` : '');
+  if (kind === 'marriage' && (one('groom') || one('bride'))) return `${t} of ${n(one('groom'))} × ${n(one('bride'))}${where}${when}` + (one('bf') || one('bm') ? `. Bride's parents: ${[n(one('bf')), n(one('bm'))].filter(Boolean).join(' & ')}` : '');
+  if (kind === 'death' && one('deceased')) return `${t} of ${n(one('deceased'))}${one('deceased').age ? ' (' + one('deceased').age + ')' : ''}${where}${when}`;
+  if (kind === 'census' && one('head')) return `${t}${where}${when}: household of ${n(one('head'))}${one('wife') ? ' & ' + n(one('wife')) : ''}`;
+  return list.length ? `${t}: ${list.map(n).join(', ')}${where}${when}` : '';
+}
+function refresh() {
+  if (!titleEdited && $('srcMode').value === 'new') { const t = autoTitle() + ($('cite').value ? ` (${$('cite').value})` : ''); $('title').value = t; }
+  const list = active();
+  const newP = list.filter(r => r.match === 'new');
+  const rels = relPlan(list);
+  const facts = list.reduce((n, r) => n + factsFor(r).length, 0);
+  const names = list.filter(r => { if (r.match === 'new') { const q = splitName(r.name, r.sex); return norm(r.name) !== norm([q.given, q.pat, q.mat].filter(Boolean).join(' ')); } return norm(r.name) !== norm((data.byId.People.get(r.match) || {}).Name); }).length;
+  const isNew = $('srcMode').value === 'new';
+  $('plan').innerHTML = [
+    isNew ? `<li><b>New source</b> ${esc($('code').value)}: ${esc($('title').value || '(no title yet)')}</li>` : `<li>Add to <b>${esc((data.byId.Sources.get(+$('srcMode').value) || {}).Code || '')}</b></li>`,
+    `<li><b>${newP.length}</b> new ${newP.length === 1 ? 'person' : 'people'}${newP.length ? ': ' + newP.map(r => esc(cleanName(r.name))).join(', ') : ''}</li>`,
+    `<li><b>${list.length - newP.length}</b> matched to people already in the doc${list.length - newP.length ? ': ' + list.filter(r => r.match !== 'new').map(r => esc(label(r))).join(', ') : ''}</li>`,
+    `<li><b>${rels.length}</b> relationships${rels.length ? ': <span class="k">' + rels.map(([t, a, b]) => `${esc(cleanName(a.name))} ${t.toLowerCase()} ${esc(cleanName(b.name))}`).join('; ') + '</span>' : ''}</li>`,
+    `<li><b>${facts}</b> evidence rows, <b>${names}</b> new name spellings</li>`
+  ].join('');
+  $('save').disabled = !list.length || (isNew && !$('title').value.trim());
+}
+
+// ---------- save ----------
+async function save() {
+  const btn = $('save'); btn.disabled = true; $('msg').className = 'msg'; $('msg').textContent = 'Saving…';
+  try {
+    const A = acts => grist.docApi.applyUserActions(acts);
+    const list = active(), place = +$('place').value || 0, rdate = dsec($('rdate').value);
+    const isNew = $('srcMode').value === 'new';
+    let src;
+    if (isNew) {
+      const rec = { Code: $('code').value.trim(), Title: $('title').value.trim(), Record_Type: $('type').value, Year: ($('edate').value || $('rdate').value) ? +($('edate').value || $('rdate').value).slice(0, 4) : null,
+        Repository: $('repo').value, Film_DGS: $('film').value.trim(), Image_No: parseInt($('imgno').value, 10) || null, Place: place,
+        Record_URL: $('link').dataset.record || '', Image_URL: $('link').dataset.image || '',
+        Transcription: [$('cite').value && 'Citation: ' + $('cite').value, $('trans').value].filter(Boolean).join('\n'),
+        Notes: $('snotes').value, Extraction: $('fully').checked ? 'Fully extracted' : 'Partly extracted' };
+      if ($('fully').checked) rec.Extracted_On = Math.floor(Date.now() / 86400000) * 86400;
+      src = (await A([['AddRecord', 'Sources', null, rec]])).retValues[0];
+    } else {
+      src = +$('srcMode').value;
+      if ($('fully').checked) await A([['UpdateRecord', 'Sources', src, { Extraction: 'Fully extracted', Extracted_On: Math.floor(Date.now() / 86400000) * 86400 }]]);
+    }
+    // people
+    const newOnes = list.filter(r => r.match === 'new');
+    if (newOnes.length) {
+      const parts = newOnes.map(r => splitName(r.name, r.sex));
+      const ids = (await A([['BulkAddRecord', 'People', newOnes.map(() => null), {
+        Given_Names: parts.map(p => p.given), Paternal_Surname: parts.map(p => p.pat), Maternal_Surname: parts.map(p => p.mat),
+        Sex: newOnes.map(r => r.sex || '?'), Status: newOnes.map(() => 'Proven'),
+        Born: newOnes.map(r => (r.role === PRINCIPAL[kindOf($('type').value)] && kindOf($('type').value) === 'birth' && $('edate').value) ? FH.fmtDate(dsec($('edate').value)) : (r.age && rdate ? `about ${new Date(rdate * 1000).getUTCFullYear() - Math.round(parseFloat(r.age))}` : '')),
+        Notes: newOnes.map((r, k) => [`${ROLE[r.role].label} in ${$('code').value || 'source'}.`, parts[k].married && `Written with married name "${parts[k].married}".`, r.notes].filter(Boolean).join(' '))
+      }]])).retValues[0];
+      newOnes.forEach((r, k) => { r.pid = ids[k]; });
+    }
+    list.forEach(r => { if (r.match !== 'new') r.pid = r.match; });
+    // relationships (reuse existing rows: add the source to Proof)
+    const conf = $('conf').value;
+    const fresh = FH.rows(await grist.docApi.fetchTable('Relationships'));
+    const adds = [], upds = [];
+    relPlan(list).forEach(([t, a, b]) => {
+      const ex = fresh.find(x => x.Relation === t && ((x.Person === a.pid && x.Related === b.pid) || (t !== 'Parent of' && x.Person === b.pid && x.Related === a.pid)));
+      if (ex) { const pr = FH.list(ex.Proof); if (!pr.includes(src)) upds.push([ex.id, ['L', ...pr, src]]); }
+      else adds.push({ Person: a.pid, Related: b.pid, Relation: t, Confidence: conf, Proof: ['L', src] });
+    });
+    const acts = [];
+    if (adds.length) acts.push(['BulkAddRecord', 'Relationships', adds.map(() => null), { Person: adds.map(x => x.Person), Related: adds.map(x => x.Related), Relation: adds.map(x => x.Relation), Confidence: adds.map(x => x.Confidence), Proof: adds.map(x => x.Proof) }]);
+    if (upds.length) acts.push(['BulkUpdateRecord', 'Relationships', upds.map(x => x[0]), { Proof: upds.map(x => x[1]) }]);
+    // evidence
+    const ev = [];
+    list.forEach(r => factsFor(r).forEach(f => ev.push({ Person: r.pid, Source: src, Fact: f.Fact, As_Written: f.As_Written, Age: f.Age != null ? f.Age : null, Info_Type: f.Info_Type, Place: place, Record_Date: f.date ? dsec(f.date) : rdate, Notes: f.note || '' })));
+    if (ev.length) { const ks = Object.keys(ev[0]); const cols = {}; ks.forEach(k => cols[k] = ev.map(e => e[k])); acts.push(['BulkAddRecord', 'Evidence', ev.map(() => null), cols]); }
+    // name spellings (always store the as-written name for matched people when it differs; for new people store it if it differs from the parsed name)
+    const builtName = r => { const q = splitName(r.name, r.sex); return [q.given, q.pat, q.mat].filter(Boolean).join(' '); };
+    const nm = list.filter(r => { const p = r.match === 'new' ? null : data.byId.People.get(r.pid); return norm(r.name) !== norm(p ? p.Name : builtName(r)); });
+    if (nm.length) acts.push(['BulkAddRecord', 'Names', nm.map(() => null), { Person: nm.map(r => r.pid), Name_As_Written: nm.map(r => r.name.trim()), Source: nm.map(() => src), Notes: nm.map(r => ROLE[r.role].label) }]);
+    if (acts.length) await A(acts);
+    const code = isNew ? $('code').value : (data.byId.Sources.get(src) || {}).Code;
+    $('msg').className = 'msg ok'; $('msg').textContent = 'Saved.';
+    $('done').innerHTML = `<div class="done">Saved <b>${esc(code)}</b>: ${newOnes.length} new people, ${adds.length} new and ${upds.length} updated relationships, ${ev.length} evidence rows, ${nm.length} name spellings. Add the image in <b>Source Desk</b>.</div>`;
+    lastSrc = src;
+    data = await FH.load(['People', 'Places', 'Sources', 'Relationships', 'Names']);
+    try { await grist.setCursorPos({ rowId: src }); } catch (e) {}
+    const keep = $('done').innerHTML; resetForm(); $('done').innerHTML = keep;
+    $('srcMode').innerHTML = '<option value="new">A new source</option>' + data.Sources.slice().sort((a, b) => codeNum(b.Code) - codeNum(a.Code)).map(s => `<option value="${s.id}">${esc(s.Code)} · ${esc((s.Title || '').slice(0, 60))}</option>`).join('');
+  } catch (e) { $('msg').className = 'msg err'; $('msg').textContent = 'Save failed: ' + e.message; btn.disabled = false; }
+}
+</script>
+</body>
+</html>
