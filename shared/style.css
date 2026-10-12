@@ -73,3 +73,5 @@ table.list { width: 100%; border-collapse: collapse; }
 table.list td, table.list th { padding: 6px 6px; border-top: 1px solid var(--line); vertical-align: top; text-align: left; }
 table.list th { font-size: 11px; color: var(--ink-3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; border-top: 0; }
 table.list tr:first-child td { border-top: 0; }
+.avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 50%; overflow: hidden; background: var(--panel-2); color: var(--ink-2); font-weight: 600; border: 1px solid var(--line); vertical-align: middle; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }

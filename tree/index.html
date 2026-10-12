@@ -27,6 +27,7 @@
   .gen-label { position: absolute; left: 10px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
   .group { display: flex; gap: 8px; padding: 6px; border-radius: 10px; }
   .group.couple { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+  .node .avatar { float: right; margin: 0 0 4px 6px; }
   .node { width: 140px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 8px; padding: 7px 9px; cursor: pointer; box-shadow: var(--shadow); text-align: left; font: inherit; color: var(--ink); }
   .node:hover { border-color: var(--accent); }
   .node .n { font: 600 13px/1.2 var(--serif); }
@@ -74,7 +75,7 @@ function node(id, cls) {
   const f = fam(id);
   const hidden = cls.includes('edge') && (f.parents.length || f.children.length);
   return `<button class="node ${p.Sex || ''} ${FH.statusClass(p.Status)} ${cls}" data-id="${id}" title="${esc(p.Status || '')}${p.Notes ? ' — ' + esc(p.Notes) : ''}">
-    <div class="n">${esc(p.Name)}</div><div class="l">${esc(FH.lifespan(p)) || '&nbsp;'}</div>${hidden ? '<div class="more">more ↕</div>' : ''}</button>`;
+    ${FH.avatar(p, 34)}<div class="n">${esc(p.Name)}</div><div class="l">${esc(FH.lifespan(p)) || '&nbsp;'}</div>${hidden ? '<div class="more">more ↕</div>' : ''}</button>`;
 }
 
 let edges = [];
@@ -138,6 +139,7 @@ function render() {
 
   const stage = document.getElementById('stage');
   stage.innerHTML = `<div class="tree" id="tree"><svg class="lines" id="lines"></svg>${rows.map(r => `<div class="gen" data-label="${r.label}">${r.html}</div>`).join('')}</div>`;
+  FH.fillPhotos(stage);
   stage.querySelectorAll('.node[data-id]').forEach(b => b.onclick = () => go(+b.dataset.id));
   requestAnimationFrame(() => {
     const focus = stage.querySelector('.node.focus');

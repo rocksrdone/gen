@@ -12,6 +12,7 @@
   .top .search { flex: 1; }
   .icon-btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); border-radius: 8px; padding: 7px 10px; cursor: pointer; font: inherit; }
   .icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .hero .who { display: flex; gap: 14px; align-items: center; }
   .hero { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; }
   .hero h1 { font: 600 26px/1.15 var(--serif); margin: 0; letter-spacing: -.01em; }
   .hero .meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
@@ -106,9 +107,9 @@ function chip(id, extra) {
   const p = data.byId.People.get(id);
   if (!p) return '';
   return `<button class="chip ${FH.statusClass(p.Status)}" data-go="${id}" title="${esc(p.Status || '')}">
-    ${esc(p.Name)} <span class="sub">${esc(FH.lifespan(p))}${extra ? ' · ' + esc(extra) : ''}</span></button>`;
+    ${FH.avatar(p, 22)} ${esc(p.Name)} <span class="sub">${esc(FH.lifespan(p))}${extra ? ' · ' + esc(extra) : ''}</span></button>`;
 }
-function placeName(id) { const p = data.byId.Places.get(id); return p ? p.Name : ''; }
+function placeName(id) { const p = data.byId.Places.get(id); return p ? (p.Full_Name || p.Name) : ''; }
 function srcLink(id) {
   const s = data.byId.Sources.get(id);
   if (!s) return '';
@@ -138,13 +139,16 @@ function render() {
   const check = p.Birth_Check || '';
   const hero = `<div class="card">
     <div class="hero">
-      <div>
+      <div class="who">
+        ${FH.avatar(p, 76)}
+        <div>
         <h1>${esc(p.Name)}</h1>
         <div class="meta">${statusBadge(p.Status)}
           ${p.Line ? `<span class="badge">${esc(p.Line)} line</span>` : ''}
           ${p.Sex && p.Sex !== '?' ? `<span class="badge">${p.Sex === 'F' ? 'Female' : 'Male'}</span>` : ''}
           ${p.Ancestry_Review ? `<span class="badge ${p.Ancestry_Review.startsWith('Done') ? 'ok' : 'warn'}">Ancestry: ${esc(p.Ancestry_Review)}</span>` : ''}
           ${p.Dead_Ends ? `<span class="badge">${p.Dead_Ends} dead end${p.Dead_Ends > 1 ? 's' : ''}</span>` : ''}
+        </div>
         </div>
       </div>
       <div class="links">
@@ -236,6 +240,7 @@ function render() {
 
   app.innerHTML = hero + `<div class="grid"><div class="col">${family}${chart}${timeline}</div>
     <div class="col">${namesHtml}${todoHtml}${consHtml}${deadHtml}${ancHtml}${dnaHtml}${storyHtml}</div></div>`;
+  FH.fillPhotos(app);
   app.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(+b.dataset.go));
 }
 

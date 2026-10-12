@@ -135,5 +135,24 @@
     function pick(id) { input.value = ''; hits = []; draw(); onPick(id); }
   };
 
+  // Profile photos (People.Photo attachments column).
+  G.photoId = p => { const l = G.list(p && p.Photo); return l.length ? l[0] : null; };
+  G.initials = p => String((p && p.Name) || '?').split(/\s+/).filter(w => /^[A-ZÁÉÍÓÚÑ]/.test(w)).slice(0, 2).map(w => w[0]).join('') || '?';
+  // <img> or initials circle; call G.fillPhotos(root) after inserting into the DOM.
+  G.avatar = (p, size) => {
+    const id = G.photoId(p), s = size || 40;
+    return `<span class="avatar" style="width:${s}px;height:${s}px;font-size:${Math.round(s * 0.38)}px">${id ? `<img data-photo="${id}" alt="">` : G.esc(G.initials(p))}</span>`;
+  };
+  let _tok = null, _tokAt = 0;
+  G.attUrl = async id => {
+    if (!_tok || Date.now() - _tokAt > 4 * 60 * 1000) { _tok = await grist.docApi.getAccessToken({ readOnly: true }); _tokAt = Date.now(); }
+    return `${_tok.baseUrl}/attachments/${id}/download?auth=${_tok.token}`;
+  };
+  G.fillPhotos = async root => {
+    const imgs = [...(root || document).querySelectorAll('img[data-photo]')];
+    if (!imgs.length) return;
+    try { for (const i of imgs) i.src = await G.attUrl(i.dataset.photo); } catch (e) {}
+  };
+
   window.FH = G;
 })();
