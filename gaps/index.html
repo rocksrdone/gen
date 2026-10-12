@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gap Finder</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/common.js"></script>
+<style>
+  .top { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+  .top .search { flex: 1; }
+  .icon-btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); border-radius: 8px; padding: 7px 10px; cursor: pointer; font: inherit; }
+  h1 { font: 600 22px/1.2 var(--serif); margin: 0; }
+  .sub { color: var(--ink-2); font-size: 13px; margin-top: 3px; }
+  .bar { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+  .vchip { border: 1px solid var(--line); border-radius: 99px; padding: 3px 10px; font-size: 13px; cursor: pointer; background: var(--panel); color: var(--ink); font-family: var(--serif); }
+  .vchip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .lbl { font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin-right: 4px; }
+  .summary { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .summary .badge { font-size: 12px; }
+  .items { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .it { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: start; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .it.have { opacity: .8; }
+  .dot { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; margin-top: 1px; }
+  .dot.have { background: var(--ok-bg); color: var(--ok); }
+  .dot.clue { background: var(--warn-bg); color: var(--warn); }
+  .dot.dead { background: var(--panel-2); color: var(--ink-3); }
+  .dot.miss { background: var(--bad-bg); color: var(--bad); }
+  .it .t { font-weight: 600; }
+  .it .y { color: var(--ink-3); font-weight: 400; font-size: 12px; margin-left: 6px; }
+  .it .d { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+  .links { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+  .links a, .links button { font-size: 12px; border: 1px solid var(--line); border-radius: 7px; padding: 4px 9px; background: var(--panel-2); color: var(--ink); cursor: pointer; text-decoration: none; font-family: var(--sans); }
+  .links a:hover, .links button:hover { border-color: var(--accent); color: var(--accent); }
+  .links .fs { border-left: 3px solid #4a8a3a; } .links .an { border-left: 3px solid #9c6b2e; } .links .ft { border-left: 3px solid #4a7fc0; }
+  .links button.dead { border-style: dashed; }
+  .who { font-size: 12px; color: var(--accent); cursor: pointer; }
+  .msg { font-size: 12px; color: var(--ok); margin-left: 6px; }
+  .filters { display: flex; gap: 6px; }
+  .filters button { border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); border-radius: 99px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+  .filters button.on { background: var(--ink); color: var(--bg); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="search" id="search"></div><button class="icon-btn" id="refresh">↻ Refresh</button></div>
+  <div id="app"><div class="loading">Loading…</div></div>
+</div>
+<script>
+const esc = FH.esc;
+const TABLES = ['People', 'Relationships', 'Evidence', 'Sources', 'Names', 'Places', 'Searches'];
+let data = null, current = null, variant = 0, filter = 'open', t = null;
+grist.ready({ requiredAccess: 'full', columns: [] });
+FH.followTheme();
+FH.personSearch(document.getElementById('search'), () => (data ? data.People : []), go);
+document.getElementById('refresh').onclick = () => reload(true);
+grist.onRecord(rec => { if (!rec) return; if (rec.id !== current) variant = 0; current = rec.id; reload(); });
+function reload(now) { clearTimeout(t); t = setTimeout(async () => { data = await FH.load(TABLES); render(); }, now ? 0 : 120); }
+function go(id) { current = id; variant = 0; render(); try { grist.setCursorPos({ rowId: id }); } catch (e) {} }
+
+const P = id => data.byId.People.get(id);
+const yr = v => { const d = FH.toDate(v); return d ? d.getUTCFullYear() : null; };
+const firstYear = s => { const m = String(s || '').match(/\b(1[5-9]\d\d|20\d\d)\b/g); return m ? m.map(Number) : []; };
+const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+// Best estimate of a person's birth range
+function birthRange(pid) {
+  const ev = data.Evidence.filter(e => e.Person === pid && e.Born_From && e.Born_To);
+  const p = P(pid) || {};
+  const ys = firstYear(p.Born);
+  if (ys.length) return [Math.min(...ys) - (/about|~|abt/i.test(p.Born) ? 2 : 0), Math.max(...ys) + (/about|~|abt/i.test(p.Born) ? 2 : 0)];
+  if (ev.length) return [Math.min(...ev.map(e => yr(e.Born_From))), Math.max(...ev.map(e => yr(e.Born_To)))];
+  return null;
+}
+function deathRange(pid, b) {
+  const p = P(pid) || {};
+  const ys = firstYear(p.Died);
+  if (ys.length && !/after|before|by/i.test(p.Died)) return [Math.min(...ys), Math.max(...ys)];
+  const alive = data.Evidence.filter(e => e.Person === pid && e.Fact === 'Alive on date').map(e => yr(e.Record_Date)).filter(Boolean);
+  let lo = alive.length ? Math.max(...alive) : (b ? b[0] + 20 : null);
+  let hi = b ? b[1] + 95 : null;
+  const before = String(p.Died || '').match(/before\s+(?:\w+\s+)?(\d{4})/i); if (before) hi = +before[1];
+  const after = String(p.Died || '').match(/after\s+(?:\w+\s+)?(\d{4})/i); if (after) lo = Math.max(lo || 0, +after[1]);
+  return lo && hi ? [lo, Math.min(hi, new Date().getFullYear())] : null;
+}
+
+// ---------- which sources prove what ----------
+const srcType = id => ((data.byId.Sources.get(id) || {}).Record_Type || '');
+const isBirthType = s => /bapt|birth/i.test(s);
+const isMarrType = s => /marri/i.test(s);
+const isDeathType = s => /death|burial/i.test(s);
+const isCensus = s => /census/i.test(s);
+// every source tied to a person: their evidence, name spellings, and relationship proofs
+function linked(pid, relKind, otherId) {
+  const ids = new Set();
+  data.Evidence.forEach(e => e.Person === pid && ids.add(e.Source));
+  data.Names.forEach(n => n.Person === pid && n.Source && ids.add(n.Source));
+  data.Relationships.forEach(r => {
+    if (relKind === 'birth' && r.Relation === 'Parent of' && r.Related === pid) FH.list(r.Proof).forEach(x => ids.add(x));
+    if (relKind === 'marriage' && r.Relation === 'Spouse of' && (r.Person === pid || r.Related === pid) && (!otherId || r.Person === otherId || r.Related === otherId)) FH.list(r.Proof).forEach(x => ids.add(x));
+  });
+  return [...ids].filter(Boolean);
+}
+function status(pid, test, factTest, deadTest, relKind, otherId) {
+  const ev = data.Evidence.filter(e => e.Person === pid);
+  let have = linked(pid, relKind, otherId).filter(id => test(srcType(id)));
+  if (relKind === 'marriage' && otherId) have = have.filter(id => linked(otherId, 'marriage', pid).includes(id));
+  if (relKind === 'death') have = have.filter(id => ev.some(e => e.Source === id && e.Fact === 'Death') || data.Names.some(n => n.Person === pid && n.Source === id));
+  if (have.length) return { st: 'have', srcs: have };
+  const clue = [...new Set(ev.filter(e => factTest && factTest(e)).map(e => e.Source))];
+  const dead = data.Searches.filter(s => FH.list(s.People).includes(pid) && s.Dead_End && deadTest(s));
+  if (clue.length) return { st: 'clue', srcs: clue, dead };
+  if (dead.length) return { st: 'dead', dead };
+  return { st: 'miss' };
+}
+const given = p => (p.Given_Names || (p.Name || '').split(' ')[0] || '').replace(/\(.*?\)|"/g, '').trim();
+// ---------- search links ----------
+function nameParts(pid, v) {
+  const p = P(pid) || {};
+  const vs = variants(pid);
+  const pick = vs[v] || vs[0] || { given: p.Given_Names, sur: p.Paternal_Surname };
+  return pick;
+}
+function variants(pid) {
+  const p = P(pid) || {}; const out = []; const seen = new Set();
+  const add = (given, sur, label) => { given = (given || '').replace(/\(.*?\)|"/g, '').replace(/\s+/g, ' ').trim(); sur = (sur || '').trim(); const k = norm(given + '|' + sur); if (!given && !sur) return; if (seen.has(k)) return; seen.add(k); out.push({ given, sur, label: label || `${given} ${sur}`.trim() }); };
+  add(p.Given_Names || given(p), p.Paternal_Surname || (p.Name || '').split(' ').slice(1, 2).join(''));
+  // short given name (drop María/José prefix and "de Jesús")
+  const g = (p.Given_Names || '').replace(/\(.*?\)|"/g, '').trim();
+  const short = g.replace(/^(María|Maria|Ma\.|José|Jose|J\.)\s+/i, '').replace(/\s+de\s+Jes[uú]s$/i, '').split(/\s+/)[0];
+  if (short && norm(short) !== norm(g)) add(short, p.Paternal_Surname);
+  const paren = (p.Given_Names || '').match(/\(([^)]+)\)/); if (paren) add(paren[1].split(/[\/,]/)[0].replace(/"/g, ''), p.Paternal_Surname);
+  data.Names.filter(n => n.Person === pid).forEach(n => {
+    let w = (n.Name_As_Written || '').replace(/^(Señorita|Señora|Sra\.|Srta\.|Sr\.|Don|Doña|el|la)\s+/i, '').replace(/\s+(de|vda\.? de)\s+\S+$/i, '').replace(/^M[ªa]\.?\s/, 'María ').trim();
+    const ws = w.split(/\s+/); if (ws.length < 2 || /^…/.test(w)) return;
+    add(ws.slice(0, -1).join(' ').replace(/^J\.\s*/, ''), ws[ws.length - 1]);
+  });
+  return out;
+}
+const enc = encodeURIComponent;
+function links(kind, pid, range, extra) {
+  const n = nameParts(pid, variant);
+  const fam = FH.family(data, pid);
+  const par = s => fam.parents.map(x => P(x.id)).find(q => q && q.Sex === s);
+  const sp = extra && extra.spouse ? P(extra.spouse) : null;
+  const f = par('M'), m = par('F');
+  const lo = range ? range[0] : '', hi = range ? range[1] : '', mid = range ? Math.round((range[0] + range[1]) / 2) : '';
+  // FamilySearch
+  const fs = new URLSearchParams();
+  fs.set('q.givenName', n.given); fs.set('q.surname', n.sur);
+  const key = { birth: 'birthLike', marriage: 'marriageLike', death: 'deathLike', census: 'residence' }[kind] || 'birthLike';
+  if (range) { fs.set(`q.${key}Date.from`, lo); fs.set(`q.${key}Date.to`, hi); }
+  if (kind !== 'census') fs.set(`q.${key}Place`, 'Chihuahua, Mexico');
+  if (f && kind !== 'death') { fs.set('q.fatherGivenName', clean(f.Given_Names)); fs.set('q.fatherSurname', f.Paternal_Surname || ''); }
+  if (m && kind !== 'death') { fs.set('q.motherGivenName', clean(m.Given_Names)); fs.set('q.motherSurname', m.Paternal_Surname || ''); }
+  if (sp) { fs.set('q.spouseGivenName', clean(sp.Given_Names)); fs.set('q.spouseSurname', sp.Paternal_Surname || ''); }
+  fs.set('f.recordCountry', 'Mexico');
+  // Ancestry
+  const an = new URLSearchParams();
+  an.set('name', `${n.given}_${n.sur}`.replace(/\s+/g, '+'));
+  const aKey = { birth: 'birth', marriage: 'marriage', death: 'death', census: 'birth' }[kind];
+  if (kind === 'census' && extra && extra.birthMid) an.set('birth', extra.birthMid); else if (mid) { an.set(aKey, mid); }
+  if (f) an.set('father', `${clean(f.Given_Names)}_${f.Paternal_Surname || ''}`.replace(/\s+/g, '+'));
+  if (m) an.set('mother', `${clean(m.Given_Names)}_${m.Paternal_Surname || ''}`.replace(/\s+/g, '+'));
+  if (sp) an.set('spouse', `${clean(sp.Given_Names)}_${sp.Paternal_Surname || ''}`.replace(/\s+/g, '+'));
+  const coll = { birth: ['60394', '60985'], marriage: ['60985'], census: ['1771'], death: [] }[kind] || [];
+  const out = [{ cls: 'fs', label: 'FamilySearch', url: 'https://www.familysearch.org/search/record/results?' + fs.toString() }];
+  coll.forEach(c => out.push({ cls: 'an', label: { '60394': 'Ancestry civil births', '60985': 'Ancestry church records', '1771': 'Ancestry 1930 census' }[c], url: `https://www.ancestry.com/search/collections/${c}/?` + an.toString().replace(/%2B/g, '+') }));
+  out.push({ cls: 'an', label: 'Ancestry all records', url: 'https://www.ancestry.com/search/?' + an.toString().replace(/%2B/g, '+') });
+  const ft = [n.given, n.sur].join(' ') + (sp ? ` ${clean(sp.Given_Names)} ${sp.Paternal_Surname}` : (f ? ` ${clean(f.Given_Names)}` : ''));
+  out.push({ cls: 'ft', label: 'FamilySearch full-text', url: 'https://www.familysearch.org/en/search/full-text/results?nlQuery=' + enc(ft) });
+  if (kind === 'death') out.push({ cls: 'ft', label: 'Find a Grave', url: `https://www.findagrave.com/memorial/search?firstname=${enc(n.given)}&lastname=${enc(n.sur)}&location=Chihuahua%2C+Mexico` });
+  return out;
+}
+const clean = g => { const w = (g || '').replace(/\(.*?\)|"/g, '').replace(/\s+de\s+Jes[uú]s$/i, '').trim().split(/\s+/).filter(Boolean); return w.length > 1 && /^(María|Maria|Ma\.|José|Jose|J\.)$/i.test(w[0]) ? w[1] : (w[0] || ''); };
+
+// ---------- build the checklist ----------
+function items(pid) {
+  const p = P(pid); const fam = FH.family(data, pid);
+  const b = birthRange(pid); const d = deathRange(pid, b);
+  const list = [];
+  list.push({ kind: 'birth', who: pid, title: `${given(p)}'s own baptism or birth record`, range: b ? [b[0], b[1] + (b[1] - b[0] < 2 ? 1 : 0)] : null,
+    ...status(pid, isBirthType, null, s => /bapt|birth/i.test(s.Record_Type || '') || /bapt|birth/i.test(s.Looking_For || ''), 'birth') });
+  const spouses = fam.spouses.map(x => x.id);
+  (spouses.length ? spouses : [null]).forEach(sid => {
+    const kids = fam.children.map(x => birthRange(x.id)).filter(Boolean);
+    const lo = b ? b[0] + 14 : null, hi = kids.length ? Math.min(...kids.map(k => k[1])) : (b ? b[1] + 45 : null);
+    const sp = sid ? P(sid) : null;
+    list.push({ kind: 'marriage', who: pid, spouse: sid, title: sp ? `Marriage to ${sp.Name}` : 'Marriage (no spouse recorded yet)', range: lo && hi ? [lo, Math.max(lo, hi)] : null,
+      ...status(pid, isMarrType, e => e.Fact === 'Marriage' && (!sid || data.Evidence.some(x => x.Source === e.Source && x.Person === sid)), s => /marri/i.test((s.Record_Type || '') + ' ' + (s.Looking_For || '')), 'marriage', sid) });
+  });
+  if (b && b[0] < 1930 && (!d || d[1] > 1930)) {
+    list.push({ kind: 'census', who: pid, title: '1930 census', range: [1930, 1930], birthMid: Math.round((b[0] + b[1]) / 2),
+      ...status(pid, s => isCensus(s), e => yr(e.Record_Date) === 1930, s => /census/i.test(s.Record_Type || '') && (s.Year_From || 0) <= 1930 && (s.Year_To || 9999) >= 1930, 'census') });
+  }
+  const dl = { kind: 'death', who: pid, title: 'Death or burial record', range: d,
+    ...status(pid, isDeathType, e => e.Fact === 'Death', s => /death|burial|grave/i.test((s.Record_Type || '') + ' ' + (s.Looking_For || '')), 'death') };
+  if (dl.st === 'have' && data.Evidence.some(e => e.Person === pid && e.Fact === 'Death' && isDeathType(srcType(e.Source)) && e.Person === pid && (data.byId.Sources.get(e.Source) || {}).Extraction !== 'Fully extracted')) dl.note = 'Found, but the source is not fully extracted yet.';
+  list.push(dl);
+  // children
+  fam.children.map(x => x.id).sort((a, c) => ((birthRange(a) || [9999])[0] - (birthRange(c) || [9999])[0])).forEach(cid => {
+    const c = P(cid), cb = birthRange(cid);
+    list.push({ kind: 'birth', who: cid, child: true, title: `Child: ${c.Name} — baptism or birth`, range: cb,
+      ...status(cid, isBirthType, null, s => /bapt|birth/i.test((s.Record_Type || '') + ' ' + (s.Looking_For || '')), 'birth') });
+  });
+  return list;
+}
+
+// ---------- render ----------
+const ICON = { have: '✓', clue: '~', dead: '×', miss: '!' };
+const WORD = { have: 'Have it', clue: 'Mentioned, record itself not found yet', dead: 'Dead end logged', miss: 'Missing' };
+function render() {
+  const app = document.getElementById('app');
+  if (!data) return;
+  const p = P(current) || data.People[0]; if (!p) { app.innerHTML = '<div class="empty">No people yet.</div>'; return; }
+  current = p.id;
+  const vs = variants(p.id); if (variant >= vs.length) variant = 0;
+  const its = items(p.id);
+  const counts = { have: 0, clue: 0, dead: 0, miss: 0 }; its.forEach(i => counts[i.st]++);
+  const shown = its.filter(i => filter === 'all' || i.st !== 'have');
+  const b = birthRange(p.id);
+  app.innerHTML = `<div class="card">
+      <h1>${esc(p.Name)}</h1>
+      <div class="sub">${esc(FH.lifespan(p))}${b ? ` · birth estimate ${b[0]}–${b[1]}` : ' · no birth estimate yet: add an age or birth year to sharpen the searches'}</div>
+      <div class="bar"><span class="lbl">Search as</span>${vs.map((v, i) => `<span class="vchip ${i === variant ? 'on' : ''}" data-v="${i}">${esc(v.label)}</span>`).join('')}</div>
+      <div class="summary"><span class="badge bad">${counts.miss} missing</span><span class="badge warn">${counts.clue} mentioned only</span><span class="badge">${counts.dead} dead ends</span><span class="badge ok">${counts.have} found</span>
+        <span class="filters" style="margin-left:auto"><button data-f="open" class="${filter === 'open' ? 'on' : ''}">To find</button><button data-f="all" class="${filter === 'all' ? 'on' : ''}">Everything</button></span></div>
+    </div>
+    <div class="items">${shown.map((it, k) => itemHtml(it, k)).join('') || '<div class="empty">Nothing left to find for this person. 🎉</div>'}</div>`;
+  app.querySelectorAll('[data-v]').forEach(el => el.onclick = () => { variant = +el.dataset.v; render(); });
+  app.querySelectorAll('[data-f]').forEach(el => el.onclick = () => { filter = el.dataset.f; render(); });
+  app.querySelectorAll('[data-go]').forEach(el => el.onclick = () => go(+el.dataset.go));
+  app.querySelectorAll('[data-dead]').forEach(el => el.onclick = () => logDead(shown[+el.dataset.dead], el));
+}
+function itemHtml(it, k) {
+  const srcs = (it.srcs || []).map(id => { const s = data.byId.Sources.get(id); return s ? `<b>${esc(s.Code)}</b>` : ''; }).join(', ');
+  const dead = (it.dead || []).map(s => `${esc(s.Site || '')} ${esc(s.Register || '')}`.trim()).join('; ');
+  const yrs = it.range ? (it.range[0] === it.range[1] ? it.range[0] : `${it.range[0]}–${it.range[1]}`) : 'years unknown';
+  const lk = it.st === 'have' ? '' : `<div class="links">${links(it.kind, it.who, it.range, { spouse: it.spouse, birthMid: it.birthMid }).map(l => `<a class="${l.cls}" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}<button class="dead" data-dead="${k}">Log as dead end</button></div>`;
+  return `<div class="it ${it.st}"><div class="dot ${it.st}" title="${WORD[it.st]}">${ICON[it.st]}</div>
+    <div><div class="t">${esc(it.title)}<span class="y">${yrs}</span></div>
+      <div class="d">${WORD[it.st]}${srcs ? ': ' + srcs : ''}${dead ? ` · Dead ends: ${dead}` : ''}${it.note ? ' · ' + esc(it.note) : ''}</div>
+      ${it.child ? `<div class="who" data-go="${it.who}">Open ${esc(given(P(it.who) || {}))}'s own gaps →</div>` : ''}
+      ${lk}</div>
+    <div></div></div>`;
+}
+async function logDead(it, btn) {
+  const n = nameParts(it.who, variant);
+  const rt = { birth: 'Baptism', marriage: 'Marriage (church)', death: 'Death (civil)', census: 'Census' }[it.kind];
+  const rec = { Register: `Index search: ${it.title}`, Record_Type: rt, Year_From: it.range ? it.range[0] : null, Year_To: it.range ? it.range[1] : null,
+    Method: 'Index search', Looking_For: it.title.replace(/^Child: /, ''), Result: 'Not found', People: ['L', it.who], Site: 'FamilySearch',
+    Search_Terms: `${n.given} ${n.sur}`, Date_Searched: Math.floor(Date.now() / 86400000) * 86400, Next_Try: 'Try other spellings',
+    Notes: 'Logged from Gap Finder.' };
+  try { await grist.docApi.applyUserActions([['AddRecord', 'Searches', null, rec]]); btn.textContent = 'Logged ✓'; btn.disabled = true; reload(); }
+  catch (e) { btn.textContent = 'Could not log: ' + e.message; }
+}
+</script>
+</body>
+</html>

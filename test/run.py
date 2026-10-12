@@ -21,7 +21,7 @@ shots = [
   ('person', 1, (1100, 1300), 'light'), ('person', 12, (1100, 1100), 'dark'), ('person', 1, (420, 1600), 'light'),
   ('tree', 2, (1300, 800), 'light'), ('tree', 1, (1300, 800), 'dark'),
   ('dna', 1, (1100, 1000), 'light'),
-  ('sources', 1, (1200, 1000), 'light'), ('sources', 1, (1200, 1000), 'dark'), ('entry', 1, (1200, 1400), 'light'),
+  ('sources', 1, (1200, 1000), 'light'), ('sources', 1, (1200, 1000), 'dark'), ('entry', 1, (1200, 1400), 'light'), ('gaps', 10, (1000, 1300), 'light'), ('gaps', 1, (1000, 1300), 'dark'),
 ]
 with sync_playwright() as p:
     b = p.chromium.launch()

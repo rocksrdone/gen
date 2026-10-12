@@ -9,6 +9,7 @@ Custom Grist widgets for the **Family History Research** doc (Stash team site).
 | DNA match helper | `DNA_Matches` | `https://rocksrdone.github.io/gen/dna/` |
 | Sources workbench | `Sources` | `https://rocksrdone.github.io/gen/sources/` |
 | Record entry | `Sources` | `https://rocksrdone.github.io/gen/entry/` |
+| Gap finder | `People` | `https://rocksrdone.github.io/gen/gaps/` |
 | Spanish record helper | any table (no access needed) | `https://rocksrdone.github.io/gen/glossary/` |
 
 ## Adding a widget in Grist
@@ -28,6 +29,8 @@ Custom Grist widgets for the **Family History Research** doc (Stash team site).
 - **Record entry**: paste an Ancestry or FamilySearch link (film, image and record IDs are pulled out, tracking junk removed), pick the record type and get a role-based form (baptism/birth: child, parents, grandparents; marriage: couple and both sets of parents; death; census household). Names are matched to people already in the doc, including alternate spellings (b/v, s/z, g/j). One Save creates the source, new people, evidence rows (age, origin, residence, occupation, marital status, "finado"), name spellings and relationships, adding the source as proof to relationships that already exist.
 
 - **Spanish record helper**: a searchable glossary of about 220 Spanish and Latin words, phrases, abbreviations and old spellings from Mexican civil and parish records (Spanish or English search). It also has a "decode a passage" box that highlights known words and turns number words into digits, and a number reader ("mil novecientos treinta" = 1930). Edit `glossary/terms.js` to add words.
+
+- **Gap finder**: for the selected person, lists the records you would expect (own baptism/birth, each marriage, 1930 census if alive, death, each child's baptism/birth) and marks each as found (with source codes), mentioned only, dead end, or missing. Missing ones get one-click FamilySearch, Ancestry (civil births 60394, church records 60985, 1930 census 1771, all records), FamilySearch full-text and Find a Grave searches, pre-filled with the chosen name spelling, years, place, parents and spouse. "Log as dead end" writes a Searches row.
 
 ## Tables and columns the widgets expect
 
