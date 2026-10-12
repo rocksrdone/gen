@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spanish Record Helper</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/common.js"></script>
+<script src="terms.js"></script>
+<style>
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+  .tabs button { border: 0; background: none; padding: 9px 14px; font: 600 13px var(--sans); color: var(--ink-2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+  .pane { display: none; } .pane.on { display: block; }
+  input, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; }
+  textarea { font-family: var(--serif); font-size: 15px; line-height: 1.5; resize: vertical; }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .cats { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+  .cats button { border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); border-radius: 99px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+  .cats button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .terms { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+  .t { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; }
+  .t .es { font: 600 15px var(--serif); }
+  .t .es .alt { font-weight: 400; color: var(--ink-3); font-size: 13px; }
+  .t .en { margin-top: 2px; }
+  .t .note { margin-top: 4px; font-size: 12px; color: var(--warn); }
+  .t .cat { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-top: 4px; }
+  .count { font-size: 12px; color: var(--ink-3); margin-bottom: 8px; }
+  .out { margin-top: 12px; font-family: var(--serif); font-size: 16px; line-height: 1.9; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; white-space: pre-wrap; }
+  mark { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; cursor: help; border-bottom: 1px dotted var(--accent); }
+  mark.num { background: var(--ok-bg); border-bottom-color: var(--ok); }
+  mark sup { font: 600 10px var(--sans); color: var(--accent); margin-left: 2px; }
+  mark.num sup { color: var(--ok); }
+  .found { margin-top: 12px; }
+  .found table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .found td { padding: 5px 6px; border-top: 1px solid var(--line); vertical-align: top; }
+  .found td:first-child { width: 30px; color: var(--ink-3); font-weight: 600; }
+  .found td.w { font-family: var(--serif); font-weight: 600; white-space: nowrap; }
+  .big { font: 600 28px var(--sans); color: var(--accent); margin: 8px 0; font-variant-numeric: tabular-nums; }
+  .numgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px 12px; font-size: 13px; margin-top: 10px; }
+  .numgrid div { display: flex; justify-content: space-between; border-bottom: 1px dotted var(--line); padding: 2px 0; }
+  .numgrid b { font-variant-numeric: tabular-nums; }
+  .hint { font-size: 12px; color: var(--ink-3); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tabs"><button data-p="look" class="on">Look up a word</button><button data-p="decode">Decode a passage</button><button data-p="nums">Numbers &amp; dates</button></div>
+
+  <div class="pane on" id="look">
+    <input id="q" type="search" placeholder="Search Spanish or English: finado, legítima, widow, godparent, 7bre…" autofocus>
+    <div class="cats" id="cats"></div>
+    <div class="count" id="count"></div>
+    <div class="terms" id="terms"></div>
+  </div>
+
+  <div class="pane" id="decode">
+    <textarea id="txt" rows="6" placeholder="Paste or type a passage from a record, e.g.: …compareció el C. Primo García, originario de San Lorenzo y vecino de este lugar, de cincuenta y dos años de edad, casado, labrador… nieta por línea paterna de los finados Juan García…"></textarea>
+    <div class="hint">Words found in the glossary are highlighted and numbered. Number words like <i>cuarenta y cuatro</i> are turned into digits (green). Hover a highlight for its meaning.</div>
+    <div class="out" id="out"></div>
+    <div class="found" id="found"></div>
+  </div>
+
+  <div class="pane" id="nums">
+    <input id="numIn" placeholder="Type a number in words: cuarenta y cuatro, mil novecientos treinta, dieciocho…">
+    <div class="big" id="numOut">&nbsp;</div>
+    <div class="hint">Records write ages, days and years in words. Old spellings work too (diez y ocho, veinte y seis, setecientos).</div>
+    <div class="numgrid" id="numgrid"></div>
+  </div>
+</div>
+<script>
+const esc = FH.esc;
+try { grist.ready({ requiredAccess: 'none' }); FH.followTheme(); } catch (e) {}
+
+// ---------- normalisation that keeps string length ----------
+const base = s => [...(s || '')].map(c => c.normalize('NFD')[0]).join('').toLowerCase();
+
+// ---------- glossary ----------
+const G = window.GLOSSARY.map(([t, en, cat, note], i) => ({ i, terms: t.split('|').map(x => x.trim()), en, cat, note: note || '' }));
+// when a group lists N terms and N meanings separated by " / ", pair them up
+const meaningOf = (g, ti) => { const parts = g.en.split(' / '); return parts.length === g.terms.length && parts.length > 1 ? parts[ti].trim() : g.en; };
+const CATS = [...new Set(G.map(g => g.cat))];
+let cat = '';
+document.getElementById('cats').innerHTML = ['All', ...CATS].map(c => `<button data-c="${c === 'All' ? '' : esc(c)}" class="${c === 'All' ? 'on' : ''}">${esc(c)}</button>`).join('');
+document.querySelectorAll('#cats button').forEach(b => b.onclick = () => { cat = b.dataset.c; document.querySelectorAll('#cats button').forEach(x => x.classList.toggle('on', x === b)); renderTerms(); });
+document.getElementById('q').oninput = renderTerms;
+function card(g) {
+  return `<div class="t"><div class="es">${esc(g.terms[0])}${g.terms.length > 1 ? ` <span class="alt">· ${g.terms.slice(1).map(esc).join(' · ')}</span>` : ''}</div><div class="en">${esc(g.en)}</div>${g.note ? `<div class="note">${esc(g.note)}</div>` : ''}<div class="cat">${esc(g.cat)}</div></div>`;
+}
+function renderTerms() {
+  const q = base(document.getElementById('q').value.trim());
+  const hits = G.filter(g => (!cat || g.cat === cat) && (!q || base(g.terms.join(' ') + ' ' + g.en + ' ' + g.note).includes(q)))
+    .sort((a, b) => q ? (score(b, q) - score(a, q)) : 0);
+  document.getElementById('count').textContent = `${hits.length} of ${G.length} entries`;
+  document.getElementById('terms').innerHTML = hits.map(card).join('') || '<div class="empty">Nothing found. Try fewer letters or the English word.</div>';
+}
+const score = (g, q) => g.terms.some(t => base(t) === q) ? 3 : g.terms.some(t => base(t).startsWith(q)) ? 2 : g.terms.some(t => base(t).includes(q)) ? 1 : 0;
+renderTerms();
+
+// ---------- numbers ----------
+const UNITS = { cero: 0, un: 1, uno: 1, una: 1, primero: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15,
+  dieciseis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19, veinte: 20, veintiun: 21, veintiuno: 21, veintiuna: 21, veintidos: 22, veintitres: 23, veinticuatro: 24, veinticinco: 25, veintiseis: 26, veintisiete: 27, veintiocho: 28, veintinueve: 29,
+  treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, setenta: 70, ochenta: 80, noventa: 90,
+  cien: 100, ciento: 100, doscientos: 200, doscientas: 200, trescientos: 300, trescientas: 300, cuatrocientos: 400, cuatrocientas: 400, quinientos: 500, quinientas: 500, seiscientos: 600, setecientos: 700, setecientas: 700, ochocientos: 800, ochocientas: 800, novecientos: 900, novecientas: 900 };
+const NUMWORD = new Set([...Object.keys(UNITS), 'mil', 'y']);
+function parseNum(words) {
+  let total = 0, cur = 0, any = false;
+  for (const w of words) {
+    if (w === 'y') continue;
+    if (w === 'mil') { total += (cur || 1) * 1000; cur = 0; any = true; continue; }
+    if (w in UNITS) { cur += UNITS[w]; any = true; } else return null;
+  }
+  return any ? total + cur : null;
+}
+// "diez y ocho" handled because 10 + 8; "veinte y seis" = 26
+document.getElementById('numIn').oninput = e => {
+  const w = base(e.target.value).replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean);
+  const n = parseNum(w);
+  document.getElementById('numOut').textContent = w.length ? (n == null ? 'Not a number I recognise' : n) : ' ';
+};
+const REF = [[1, 'uno'], [2, 'dos'], [3, 'tres'], [4, 'cuatro'], [5, 'cinco'], [6, 'seis'], [7, 'siete'], [8, 'ocho'], [9, 'nueve'], [10, 'diez'], [11, 'once'], [12, 'doce'], [13, 'trece'], [14, 'catorce'], [15, 'quince'], [16, 'dieciséis'], [17, 'diecisiete'], [18, 'dieciocho'], [19, 'diecinueve'], [20, 'veinte'], [21, 'veintiuno'], [22, 'veintidós'], [25, 'veinticinco'], [30, 'treinta'], [31, 'treinta y uno'], [40, 'cuarenta'], [50, 'cincuenta'], [60, 'sesenta'], [70, 'setenta'], [80, 'ochenta'], [90, 'noventa'], [100, 'cien / ciento'], [500, 'quinientos'], [700, 'setecientos'], [900, 'novecientos'], [1000, 'mil'], [1873, 'mil ochocientos setenta y tres'], [1909, 'mil novecientos nueve'], [1930, 'mil novecientos treinta']];
+document.getElementById('numgrid').innerHTML = REF.map(([n, w]) => `<div><span>${w}</span><b>${n}</b></div>`).join('');
+
+// ---------- decoder ----------
+// index every term (skip spelling-rule rows); longest first so phrases win
+const IDX = [];
+G.forEach(g => { if (g.cat === 'Spelling') return; g.terms.forEach((t, ti) => { const b = base(t).replace(/…/g, '').trim(); if (b.length >= 2 && !/^[a-z]\.?$/.test(b)) IDX.push({ b, g, en: meaningOf(g, ti), key: g.i + ':' + (meaningOf(g, ti) === g.en ? 0 : ti) }); }); });
+IDX.sort((a, b) => b.b.length - a.b.length);
+const isWordChar = c => /[a-z0-9ñ]/i.test(c || '');
+function decode() {
+  const raw = document.getElementById('txt').value, low = base(raw);
+  const taken = new Array(raw.length).fill(false), spans = [];
+  // number phrases
+  const re = /[a-zñ]+/g; let m; const toks = [];
+  while ((m = re.exec(low))) toks.push({ w: m[0], s: m.index, e: m.index + m[0].length });
+  for (let i = 0; i < toks.length; i++) {
+    if (!NUMWORD.has(toks[i].w) || toks[i].w === 'y' || toks[i].w === 'un' || toks[i].w === 'una') continue;
+    let j = i; const ws = [];
+    while (j < toks.length && NUMWORD.has(toks[j].w)) { ws.push(toks[j].w); j++; }
+    while (ws.length && ws[ws.length - 1] === 'y') { ws.pop(); j--; }
+    const n = parseNum(ws);
+    if (n != null && !(ws.length === 1 && ['uno', 'primero'].includes(ws[0]))) {
+      const s = toks[i].s, e = toks[j - 1].e;
+      spans.push({ s, e, num: n }); for (let k = s; k < e; k++) taken[k] = true; i = j - 1;
+    }
+  }
+  // glossary terms
+  for (const { b, g, en, key } of IDX) {
+    let from = 0, at;
+    while ((at = low.indexOf(b, from)) !== -1) {
+      const e = at + b.length;
+      const okL = !isWordChar(low[at - 1]) || !isWordChar(b[0]);
+      const okR = !isWordChar(low[e]) || !isWordChar(b[b.length - 1]);
+      if (okL && okR && !taken.slice(at, e).some(Boolean)) { spans.push({ s: at, e, g, en, key }); for (let k = at; k < e; k++) taken[k] = true; }
+      from = at + 1;
+    }
+  }
+  spans.sort((a, b) => a.s - b.s);
+  const seen = new Map(); let html = '', pos = 0, list = [];
+  for (const sp of spans) {
+    html += esc(raw.slice(pos, sp.s));
+    const word = raw.slice(sp.s, sp.e);
+    if (sp.num != null) { html += `<mark class="num" title="${sp.num}">${esc(word)}<sup>${sp.num}</sup></mark>`; }
+    else {
+      if (!seen.has(sp.key)) { seen.set(sp.key, seen.size + 1); list.push({ n: seen.size, word, g: sp.g, en: sp.en }); }
+      const n = seen.get(sp.key);
+      html += `<mark title="${esc(sp.en)}">${esc(word)}<sup>${n}</sup></mark>`;
+    }
+    pos = sp.e;
+  }
+  html += esc(raw.slice(pos));
+  document.getElementById('out').innerHTML = raw.trim() ? html : '<span class="faint">The decoded text appears here.</span>';
+  document.getElementById('found').innerHTML = list.length ? `<table>${list.map(x => `<tr><td>${x.n}</td><td class="w">${esc(x.word)}</td><td>${esc(x.en)}${x.g.note ? `<div class="hint" style="color:var(--warn)">${esc(x.g.note)}</div>` : ''}</td></tr>`).join('')}</table>` : '';
+}
+document.getElementById('txt').oninput = decode; decode();
+
+// tabs
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === b.dataset.p));
+});
+</script>
+</body>
+</html>

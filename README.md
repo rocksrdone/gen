@@ -9,6 +9,7 @@ Custom Grist widgets for the **Family History Research** doc (Stash team site).
 | DNA match helper | `DNA_Matches` | `https://rocksrdone.github.io/gen/dna/` |
 | Sources workbench | `Sources` | `https://rocksrdone.github.io/gen/sources/` |
 | Record entry | `Sources` | `https://rocksrdone.github.io/gen/entry/` |
+| Spanish record helper | any table (no access needed) | `https://rocksrdone.github.io/gen/glossary/` |
 
 ## Adding a widget in Grist
 
@@ -25,6 +26,8 @@ Custom Grist widgets for the **Family History Research** doc (Stash team site).
 - **Sources workbench**: browse and filter sources (by type, extraction status, or no image yet). Open the record or image, drag, paste or choose images to upload straight into the source, set the extraction status (which stamps the date), edit the transcription, and add evidence rows for any person without leaving the page. New sources get the next S-code, and tracking parameters are stripped from pasted links.
 
 - **Record entry**: paste an Ancestry or FamilySearch link (film, image and record IDs are pulled out, tracking junk removed), pick the record type and get a role-based form (baptism/birth: child, parents, grandparents; marriage: couple and both sets of parents; death; census household). Names are matched to people already in the doc, including alternate spellings (b/v, s/z, g/j). One Save creates the source, new people, evidence rows (age, origin, residence, occupation, marital status, "finado"), name spellings and relationships, adding the source as proof to relationships that already exist.
+
+- **Spanish record helper**: a searchable glossary of about 220 Spanish and Latin words, phrases, abbreviations and old spellings from Mexican civil and parish records (Spanish or English search). It also has a "decode a passage" box that highlights known words and turns number words into digits, and a number reader ("mil novecientos treinta" = 1930). Edit `glossary/terms.js` to add words.
 
 ## Tables and columns the widgets expect
 
