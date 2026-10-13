@@ -75,7 +75,7 @@ function node(id, cls) {
   const f = fam(id);
   const hidden = cls.includes('edge') && (f.parents.length || f.children.length);
   return `<button class="node ${p.Sex || ''} ${FH.statusClass(p.Status)} ${cls}" data-id="${id}" title="${esc(p.Status || '')}${p.Notes ? ' — ' + esc(p.Notes) : ''}">
-    ${FH.avatar(p, 34)}<div class="n">${esc(p.Name)}</div><div class="l">${esc(FH.lifespan(p)) || '&nbsp;'}</div>${hidden ? '<div class="more">more ↕</div>' : ''}</button>`;
+    ${FH.avatar(p, 34)}<div class="n">${esc(p.Name)}</div><div class="l">${esc(FH.lifespan(p)) || '&nbsp;'}</div>${p.Relationship_To_Me ? `<div class="l" style="color:var(--accent)">${esc(p.Relationship_To_Me)}</div>` : ''}${hidden ? '<div class="more">more ↕</div>' : ''}</button>`;
 }
 
 let edges = [];
