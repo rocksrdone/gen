@@ -143,7 +143,7 @@ function render() {
         ${FH.avatar(p, 76)}
         <div>
         <h1>${esc(p.Name)}</h1>
-        <div class="meta">${statusBadge(p.Status)}
+        <div class="meta">${p.Relationship_To_Me ? `<span class="badge ok">${esc(p.Relationship_To_Me === 'You' ? 'You' : 'Your ' + p.Relationship_To_Me.charAt(0).toLowerCase() + p.Relationship_To_Me.slice(1))}</span>` : ''}${statusBadge(p.Status)}
           ${p.Line ? `<span class="badge">${esc(p.Line)} line</span>` : ''}
           ${p.Sex && p.Sex !== '?' ? `<span class="badge">${p.Sex === 'F' ? 'Female' : 'Male'}</span>` : ''}
           ${p.Ancestry_Review ? `<span class="badge ${p.Ancestry_Review.startsWith('Done') ? 'ok' : 'warn'}">Ancestry: ${esc(p.Ancestry_Review)}</span>` : ''}
