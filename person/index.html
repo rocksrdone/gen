@@ -65,6 +65,32 @@
   .item .t { font-weight: 500; }
   .item .d { font-size: 12px; color: var(--ink-2); }
   .row { display: flex; gap: 6px; align-items: baseline; justify-content: space-between; }
+
+  /* Life story */
+  .life { margin-top: 12px; }
+  .ls-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; }
+  .ls-f { border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); border-radius: 99px; padding: 3px 10px; font: 500 12px/1.4 var(--sans); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+  .ls-f:hover { border-color: var(--accent); color: var(--ink); }
+  .ls-f.on { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+  .ls-f .n { opacity: .7; font-variant-numeric: tabular-nums; }
+  .ls-year { display: grid; grid-template-columns: 64px 1fr; gap: 0 14px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .ls-year:first-of-type { border-top: 0; padding-top: 0; }
+  .ls-y { font: 600 18px/1.3 var(--serif); color: var(--ink); font-variant-numeric: tabular-nums; }
+  .ls-y .age { display: block; font: 500 11px/1.3 var(--sans); color: var(--ink-3); }
+  .ls-items { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .ls-item { border-left: 3px solid var(--c, var(--line)); padding: 1px 0 1px 10px; }
+  .ls-item.anec { background: var(--panel-2); border-radius: 0 8px 8px 0; padding: 8px 12px; }
+  .ls-cat { font: 600 10.5px/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--c, var(--ink-3)); }
+  .ls-text { font: 15px/1.5 var(--serif); color: var(--ink); margin: 3px 0 2px; overflow-wrap: anywhere; }
+  .ls-item.anec .ls-text { font-size: 15.5px; }
+  .ls-meta { font-size: 12px; color: var(--ink-2); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+  .ls-note { font-size: 12px; color: var(--ink-3); font-style: italic; margin-top: 2px; }
+  .ls-more { margin-top: 10px; }
+  @media (max-width: 600px) { .ls-year { grid-template-columns: 1fr; gap: 4px; } .ls-y .age { display: inline; margin-left: 6px; } }
+  .c-anecdote { --c: var(--accent); } .c-occupation { --c: var(--warn); } .c-community { --c: var(--ok); }
+  .c-family { --c: var(--hyp); } .c-health { --c: var(--bad); } .c-military { --c: var(--bad); }
+  .c-residence { --c: var(--ink-2); } .c-historical { --c: var(--hyp); } .c-appearance { --c: var(--accent); }
+  .c-religion { --c: var(--ok); } .c-language { --c: var(--warn); } .c-property { --c: var(--warn); } .c-education { --c: var(--ok); }
 </style>
 </head>
 <body>
@@ -77,8 +103,9 @@
 </div>
 <script>
 const TABLES = ['People', 'Relationships', 'Evidence', 'Sources', 'Names', 'Places', 'Searches',
-  'Ancestry_Sync', 'Conclusions', 'DNA_Matches', 'DNA_Clusters', 'Stories', 'ToDo'];
+  'Ancestry_Sync', 'Conclusions', 'DNA_Matches', 'DNA_Clusters', 'Stories', 'ToDo', 'Life_Details'];
 let data = null, current = null, loadTimer = null;
+let lsFilter = 'All', lsAll = false, lsFor = null;
 const esc = FH.esc;
 
 grist.ready({ requiredAccess: 'full', columns: [] });
@@ -238,10 +265,65 @@ function render() {
   const stories = data.Stories.filter(s => FH.list(s.People).includes(p.id));
   const storyHtml = stories.length ? section('Family stories', stories.length, stories.map(s => `<div class="item"><div class="t" style="font-family:var(--serif)">${esc(s.Story)}</div><div class="d">${esc(s.Told_By || '')} · <span class="badge ${s.Verified === 'Supported' ? 'ok' : s.Verified === 'Contradicted' ? 'bad' : ''}">${esc(s.Verified || 'Unverified')}</span>${s.Notes ? ' · ' + esc(s.Notes) : ''}</div></div>`).join('')) : '';
 
-  app.innerHTML = hero + `<div class="grid"><div class="col">${family}${chart}${timeline}</div>
+  app.innerHTML = hero + lifeStory(p) + `<div class="grid"><div class="col">${family}${chart}${timeline}</div>
     <div class="col">${namesHtml}${todoHtml}${consHtml}${deadHtml}${ancHtml}${dnaHtml}${storyHtml}</div></div>`;
   FH.fillPhotos(app);
   app.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(+b.dataset.go));
+  app.querySelectorAll('[data-lsf]').forEach(b => b.onclick = () => { lsFilter = b.dataset.lsf; lsAll = false; render(); });
+  app.querySelectorAll('[data-lsmore]').forEach(b => b.onclick = () => { lsAll = !lsAll; render(); });
+}
+
+// ---- Life story: Life_Details rows for this person as a readable, year-by-year story ----
+const CAT_CLASS = {
+  'Anecdote': 'c-anecdote', 'Occupation': 'c-occupation', 'Community & social': 'c-community', 'Family life': 'c-family',
+  'Health & cause of death': 'c-health', 'Military service': 'c-military', 'Residence & migration': 'c-residence',
+  'Historical event': 'c-historical', 'Appearance': 'c-appearance', 'Religion': 'c-religion',
+  'Language & citizenship': 'c-language', 'Property & wealth': 'c-property', 'Education & literacy': 'c-education'
+};
+const CAT_SHORT = { 'Health & cause of death': 'Health', 'Residence & migration': 'Residence', 'Community & social': 'Community',
+  'Language & citizenship': 'Language', 'Property & wealth': 'Property', 'Education & literacy': 'Education', 'Military service': 'Military' };
+const LS_LIMIT = 12;
+
+function birthYear(p) { const m = String(p.Born || '').match(/\d{4}/); return m ? +m[0] : null; }
+
+function lifeStory(p) {
+  if (lsFor !== p.id) { lsFor = p.id; lsFilter = 'All'; lsAll = false; }
+  const all = (data.Life_Details || []).filter(d => d.Person === p.id);
+  if (!all.length) return '';
+  const counts = {};
+  all.forEach(d => { const c = d.Category || 'Other'; counts[c] = (counts[c] || 0) + 1; });
+  if (lsFilter !== 'All' && !counts[lsFilter]) lsFilter = 'All';
+  const cats = Object.keys(counts).sort((a, b) => (a === 'Anecdote' ? -1 : b === 'Anecdote' ? 1 : counts[b] - counts[a]));
+  const filters = [`<button class="ls-f ${lsFilter === 'All' ? 'on' : ''}" data-lsf="All">All <span class="n">${all.length}</span></button>`]
+    .concat(cats.map(c => `<button class="ls-f ${lsFilter === c ? 'on' : ''} ${CAT_CLASS[c] || ''}" data-lsf="${esc(c)}">${c === 'Anecdote' ? '★ Stories' : esc(CAT_SHORT[c] || c)} <span class="n">${counts[c]}</span></button>`)).join('');
+
+  const rows = all.filter(d => lsFilter === 'All' || (d.Category || 'Other') === lsFilter)
+    .sort((a, b) => (a.Year == null) - (b.Year == null) || (a.Year || 0) - (b.Year || 0) || a.id - b.id);
+  const shown = lsAll ? rows : rows.slice(0, LS_LIMIT);
+  const by = birthYear(p);
+  const groups = [];
+  shown.forEach(d => { const k = d.Year || 'Undated'; const g = groups[groups.length - 1]; if (g && g.k === k) g.items.push(d); else groups.push({ k, items: [d] }); });
+
+  const conf = c => ({ 'Inferred': '<span class="badge warn">inferred</span>', 'Family story': '<span class="badge hyp">family story</span>',
+    'Historical context': '<span class="badge hyp">context</span>' }[c] || '');
+  const item = d => {
+    const cls = CAT_CLASS[d.Category] || '';
+    const when = d.When && String(d.When) !== String(d.Year) ? esc(d.When) : '';
+    const meta = [when, d.Place ? esc(d.Place) : '', d.Source ? srcLink(d.Source) : '', conf(d.Confidence)].filter(Boolean).join(' <span class="faint">·</span> ');
+    return `<div class="ls-item ${cls} ${d.Category === 'Anecdote' ? 'anec' : ''}">
+      <div class="ls-cat">${esc(d.Category === 'Anecdote' ? 'Story' : (d.Category || 'Detail'))}</div>
+      <div class="ls-text">${esc(d.Detail)}</div>
+      ${meta ? `<div class="ls-meta">${meta}</div>` : ''}
+      ${d.Notes ? `<div class="ls-note">${esc(d.Notes)}</div>` : ''}</div>`;
+  };
+  const body = groups.map(g => {
+    const age = typeof g.k === 'number' && by && g.k >= by ? `age ~${g.k - by}` : '';
+    return `<div class="ls-year"><div class="ls-y">${esc(g.k)}${age ? `<span class="age">${age}</span>` : ''}</div>
+      <div class="ls-items">${g.items.map(item).join('')}</div></div>`;
+  }).join('');
+  const more = rows.length > LS_LIMIT ? `<div class="ls-more"><button class="icon-btn" data-lsmore="1">${lsAll ? 'Show fewer' : `Show all ${rows.length}`}</button></div>` : '';
+  return `<div class="card life"><div class="section-title">Life story<span class="count">${all.length}</span></div>
+    <div class="ls-filters">${filters}</div>${body}${more}</div>`;
 }
 
 function sortByBirth(arr) {

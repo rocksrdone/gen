@@ -20,7 +20,7 @@ Custom Grist widgets for the **Family History Research** doc (Stash team site).
 
 ## What each widget does
 
-- **Person profile**: a full page for the selected person. It shows vitals, the birth-year check, family links you can click to move around, an evidence timeline, a chart of the birth year each stated age implies, name variants, conclusions, open questions, dead ends, Ancestry sync items, DNA matches and family stories. A search box jumps to anyone.
+- **Person profile**: a full page for the selected person. It shows vitals, a **Life story** (the person's `Life_Details` rows as a year-by-year timeline with the person's age, colour-coded by category, with filter buttons such as ★ Stories for anecdotes, each line linked to its source and flagged if inferred or context), the birth-year check, family links you can click to move around, an evidence timeline, a chart of the birth year each stated age implies, name variants, conclusions, open questions, dead ends, Ancestry sync items, DNA matches and family stories. A search box jumps to anyone.
 - **Family tree**: an hourglass tree with up to 3 generations above and below, plus siblings and spouses. Lines are dashed for relationships that aren't proven, and card borders show each person's status. Click anyone to centre the tree on them.
 - **DNA match helper**: a quick-entry form for AncestryDNA matches with a live relationship guess. For the selected match it charts where the shared cM falls on the Shared cM Project ranges. It also has a cluster summary, a list of all matches sorted by cM, and shared-match entry.
 
@@ -34,8 +34,8 @@ Custom Grist widgets for the **Family History Research** doc (Stash team site).
 
 ## Tables and columns the widgets expect
 
-People, Relationships, Evidence, Sources, Names, Places, Searches, Ancestry_Sync, Conclusions, ToDo, Stories, DNA_Matches, DNA_Clusters, DNA_Kits, DNA_Shared. These use the column names created when the doc was set up. If you rename a column, update the widget code too.
+People, Relationships, Evidence, Sources, Names, Places, Searches, Ancestry_Sync, Conclusions, ToDo, Stories, Life_Details, DNA_Matches, DNA_Clusters, DNA_Kits, DNA_Shared. These use the column names created when the doc was set up. If you rename a column, update the widget code too.
 
 ## Local testing
 
-`python3 test/make_fixture.py && python3 test/run.py` renders each widget with sample data and a mock Grist API (Playwright), then saves screenshots in `test/`.
+`python3 test/make_fixture.py && python3 test/run.py` renders each widget with sample data and a mock Grist API (Playwright), then saves screenshots in `test/`. `python3 test/life_test.py` renders the Life story section on its own.
